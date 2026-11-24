@@ -107,6 +107,7 @@ export function FindingDrawer({
       icon={<ShieldAlert size={20} />}
       tone="coral"
       onClose={onClose}
+      solidDetail
     >
       {loading && <LoadingState label="Loading finding details…" />}
       {error && <ErrorState message={error} onRetry={() => void loadDetail()} />}

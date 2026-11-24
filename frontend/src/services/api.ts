@@ -97,6 +97,19 @@ export interface AwsCredentialsRead {
   aws_role_arn: string | null
 }
 
+export interface AwsConnectionDisconnectRead {
+  connected: boolean
+  message: string
+}
+
+export const AWS_CONNECTION_STATUS_EVENT = 'cloudsentry:aws-connection-status'
+
+export function announceAwsConnectionStatus(connected: boolean) {
+  window.dispatchEvent(new CustomEvent<boolean>(AWS_CONNECTION_STATUS_EVENT, {
+    detail: connected,
+  }))
+}
+
 export async function getAwsCredentials(): Promise<AwsCredentialsRead> {
   const response = await api.get<AwsCredentialsRead>('/settings/aws-credentials')
   return response.data
@@ -109,6 +122,11 @@ export async function saveAwsCredentials(request: {
   aws_role_arn?: string
 }): Promise<AwsCredentialsRead> {
   const response = await api.put<AwsCredentialsRead>('/settings/aws-credentials', request)
+  return response.data
+}
+
+export async function disconnectAwsConnection(): Promise<AwsConnectionDisconnectRead> {
+  const response = await api.delete<AwsConnectionDisconnectRead>('/settings/aws-credentials')
   return response.data
 }
 

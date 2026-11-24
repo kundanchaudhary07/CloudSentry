@@ -48,7 +48,7 @@ export function AuthenticationPage() {
       persistAccessToken(token)
       void getCurrentUser()
         .then((user) => {
-          saveAuthenticatedSession(user.full_name, token)
+          saveAuthenticatedSession(user.full_name, token, user.id)
           window.history.replaceState({}, '', '/login')
           navigate('/dashboard', { replace: true })
         })
@@ -81,7 +81,7 @@ export function AuthenticationPage() {
       const response = isSignUp
         ? await register(operatorIdentifier, fullName.trim(), password)
         : await login(operatorIdentifier, password)
-      saveAuthenticatedSession(response.user.full_name, response.access_token)
+      saveAuthenticatedSession(response.user.full_name, response.access_token, response.user.id)
       navigate('/dashboard')
     } catch (error) {
       setMessage(getApiErrorMessage(error))

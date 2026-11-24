@@ -30,6 +30,7 @@ export function clearStoredCredentials() {
 export interface OperatorSession {
   displayName: string
   initials: string
+  userId?: string
 }
 
 function formatName(identifier: string) {
@@ -66,7 +67,13 @@ export function readOperatorSession(): OperatorSession | null {
       && 'initials' in value
       && typeof value.initials === 'string'
     ) {
-      return { displayName: value.displayName, initials: value.initials }
+      return {
+        displayName: value.displayName,
+        initials: value.initials,
+        ...('userId' in value && typeof value.userId === 'string'
+          ? { userId: value.userId }
+          : {}),
+      }
     }
   } catch {
     window.localStorage.removeItem(SESSION_KEY)
@@ -88,10 +95,11 @@ export function saveOperatorSession(identifier: string) {
   window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
 }
 
-export function saveAuthenticatedSession(fullName: string, token: string) {
+export function saveAuthenticatedSession(fullName: string, token: string, userId: string) {
   const session: OperatorSession = {
     displayName: fullName,
     initials: getInitials(fullName),
+    userId,
   }
   persistAccessToken(token)
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session))

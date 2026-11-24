@@ -44,6 +44,7 @@ export function ResourceDrawer({
       icon={drawerIcon}
       tone={drawerTone}
       onClose={onClose}
+      solidDetail
     >
       {loading && <LoadingState label="Refreshing resource details…" />}
       {error && <ErrorState message={error} />}

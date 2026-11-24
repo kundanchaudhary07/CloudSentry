@@ -105,8 +105,8 @@ export function CostsPage() {
 
       {report && !loading && (
         <>
-          <section className="cost-summary-grid">
-            <article className="surface-card cost-summary-card">
+          <section className="cost-summary-grid costs-kpi-grid">
+            <article className="surface-card cost-summary-card costs-kpi-card">
               <div className="cost-summary-card-head">
                 <PastelIconBadge tone="blue"><CircleDollarSign size={19} /></PastelIconBadge>
                 <p className="card-kicker">Current period spend</p>
@@ -125,7 +125,7 @@ export function CostsPage() {
                 <span className="muted-copy">Period end date is exclusive.</span>
               )}
             </article>
-            <article className="surface-card cost-summary-card">
+            <article className="surface-card cost-summary-card costs-kpi-card">
               <div className="cost-summary-card-head">
                 <PastelIconBadge tone="violet"><ReceiptText size={19} /></PastelIconBadge>
                 <p className="card-kicker">Prior period spend</p>
@@ -141,7 +141,7 @@ export function CostsPage() {
                   : 'No billing figure is inferred.'}
               </span>
             </article>
-            <article className="surface-card cost-summary-card">
+            <article className="surface-card cost-summary-card costs-kpi-card">
               <div className="cost-summary-card-head">
                 <PastelIconBadge tone="mint"><ChartNoAxesCombined size={19} /></PastelIconBadge>
                 <p className="card-kicker">Month-over-month change</p>
@@ -153,7 +153,7 @@ export function CostsPage() {
               </strong>
               <span className="muted-copy">Compared over matched month-to-date periods</span>
             </article>
-            <article className="surface-card cost-summary-card">
+            <article className="surface-card cost-summary-card costs-kpi-card">
               <div className="cost-summary-card-head">
                 <PastelIconBadge tone="amber"><Lightbulb size={19} /></PastelIconBadge>
                 <p className="card-kicker">Waste findings</p>

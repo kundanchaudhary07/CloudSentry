@@ -127,24 +127,48 @@ export function InventoryPage() {
 
       {latestCompletedId && (
         <>
-          <section className="inventory-summary-grid" aria-label="Inventory totals">
+          <section className="inventory-summary-grid remediation-kpi-grid" aria-label="Inventory totals">
             <InventorySummaryCard label="Total assets" value={loading ? null : resources.length} tone="blue" icon={<Boxes size={20} />} />
             <InventorySummaryCard label="Compute · EC2" value={loading ? null : resources.filter((resource) => resource.resource_type === 'EC2').length} tone="violet" icon={<Boxes size={20} />} />
             <InventorySummaryCard label="Storage · S3 & EBS" value={loading ? null : storageCount} tone="mint" icon={<Database size={20} />} />
             <InventorySummaryCard label="Network · identity · RDS" value={loading ? null : identityNetworkCount} tone="amber" icon={<Network size={20} />} />
           </section>
 
-          <div className="toolbar surface-card">
-            <label className="search-control">
-              <Search size={16} aria-hidden="true" />
-              <input
-                type="search"
-                placeholder="Search ID, name, or type…"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                aria-label="Search inventory"
-              />
-            </label>
+          <div className="toolbar surface-card inventory-toolbar">
+            <div className="inventory-filter-top-row">
+              <label className="search-control inventory-search-control">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  placeholder="Search ID, name, or type…"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  aria-label="Search inventory"
+                />
+              </label>
+              <label className="inventory-region-group" htmlFor="inventory-region">
+                <span className="inventory-region-label">Region</span>
+                <select
+                  id="inventory-region"
+                  className="input-control inventory-region-select"
+                  value={region}
+                  onChange={(event) => setRegion(event.target.value)}
+                >
+                  <option value="">All regions</option>
+                  {regions.map((value) => (
+                    <option value={value} key={value}>
+                      {value} ({resources.filter((resource) => resource.region === value).length})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {activeFilters && (
+                <button className="button button-secondary reset-filters-button" type="button" onClick={resetFilters}>
+                  Clear Filters
+                </button>
+              )}
+              <span className="result-count">{visibleResources.length.toLocaleString()} resources</span>
+            </div>
             <div className="resource-type-pills" role="group" aria-label="Filter by resource type">
               <button type="button" className={`filter-pill${!type ? ' selected' : ''}`} aria-pressed={!type} onClick={() => setType('')}>All ({resources.length})</button>
               {resourceTypes.map((resourceType) => (
@@ -159,23 +183,6 @@ export function InventoryPage() {
                 </button>
               ))}
             </div>
-            <label className="filter-field">
-              <span>Region</span>
-              <select className="input-control" value={region} onChange={(event) => setRegion(event.target.value)}>
-                <option value="">All regions</option>
-                {regions.map((value) => (
-                  <option value={value} key={value}>
-                    {value} ({resources.filter((resource) => resource.region === value).length})
-                  </option>
-                ))}
-              </select>
-            </label>
-            {activeFilters && (
-              <button className="button button-secondary reset-filters-button" type="button" onClick={resetFilters}>
-                Clear Filters
-              </button>
-            )}
-            <span className="result-count">{visibleResources.length.toLocaleString()} resources</span>
           </div>
 
           {loading && <LoadingState label="Loading inventory…" />}
@@ -255,12 +262,14 @@ function InventorySummaryCard({
   icon: ReactNode
 }) {
   return (
-    <article className="surface-card inventory-summary-card">
+    <article className="surface-card inventory-summary-card remediation-kpi-card">
       <PastelIconBadge tone={tone}>{icon}</PastelIconBadge>
-      <span className="kpi-label">{label}</span>
-      <strong className={value === null ? 'kpi-status-text' : 'kpi-number'}>
-        {value === null ? '—' : value.toLocaleString()}
-      </strong>
+      <div>
+        <span className="kpi-label">{label}</span>
+        <strong className={value === null ? 'kpi-status-text' : 'kpi-number'}>
+          {value === null ? '—' : value.toLocaleString()}
+        </strong>
+      </div>
     </article>
   )
 }

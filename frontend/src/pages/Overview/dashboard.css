@@ -644,6 +644,16 @@
   border-bottom: 0;
 }
 
+.finding-row-severity {
+  display: inline-flex;
+  width: 82px;
+  min-width: 82px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .priority-copy {
   display: flex;
   min-width: 0;

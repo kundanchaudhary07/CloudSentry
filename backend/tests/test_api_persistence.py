@@ -321,6 +321,34 @@ def test_api_returns_not_found_and_validates_patch_payload(
     ).status_code == 422
 
 
+def test_disconnect_aws_credentials_removes_user_connection(
+    api_client: TestClient,
+) -> None:
+    disconnected = api_client.delete("/api/v1/settings/aws-credentials")
+    assert disconnected.status_code == 200
+    assert disconnected.json() == {
+        "connected": False,
+        "message": "AWS connection disconnected.",
+    }
+
+    credentials = api_client.get("/api/v1/settings/aws-credentials")
+    assert credentials.status_code == 200
+    assert credentials.json()["has_aws_credentials"] is False
+    assert credentials.json()["aws_access_key_id_preview"] is None
+
+    scan = api_client.post(
+        "/api/v1/scans",
+        json={
+            "regions": [REGION],
+            "include_cost_explorer": False,
+            "required_tags": ["Environment", "Owner"],
+            "required_cost_tags": ["CostCenter", "Project"],
+        },
+    )
+    assert scan.status_code == 400
+    assert scan.json()["detail"] == "Connect your AWS account in Settings before running a scan."
+
+
 def test_cross_user_scan_inventory_finding_and_settings_are_isolated(
     api_client: TestClient,
 ) -> None:

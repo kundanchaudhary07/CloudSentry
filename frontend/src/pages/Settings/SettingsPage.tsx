@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { getApiErrorMessage, getAwsCredentials, saveAwsCredentials } from '../../services/api'
+import {
+  announceAwsConnectionStatus,
+  disconnectAwsConnection as disconnectAwsConnectionRequest,
+  getApiErrorMessage,
+  getAwsCredentials,
+  saveAwsCredentials,
+} from '../../services/api'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import { ScanTriggerButton } from '../../components/ui/ScanTriggerButton'
 import { PageHeader } from '../../components/ui/Feedback'
@@ -20,6 +26,9 @@ export function SettingsPage() {
   const [awsSecretKey, setAwsSecretKey] = useState('')
   const [awsRegion, setAwsRegion] = useState('us-east-1')
   const [awsRoleArn, setAwsRoleArn] = useState('')
+  const [hasAwsCredentials, setHasAwsCredentials] = useState(false)
+  const [savingAws, setSavingAws] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
   const [awsPreview, setAwsPreview] = useState<string | null>(null)
   const [awsMessage, setAwsMessage] = useState<string | null>(null)
   const [awsError, setAwsError] = useState<string | null>(null)
@@ -27,18 +36,41 @@ export function SettingsPage() {
   useEffect(() => {
     getAwsCredentials()
       .then((value) => {
+        setHasAwsCredentials(value.has_aws_credentials)
         setAwsPreview(value.aws_access_key_id_preview)
-        setAwsRegion(value.aws_default_region)
+        setAwsRegion(value.has_aws_credentials ? value.aws_default_region : 'us-east-1')
         setAwsRoleArn(value.aws_role_arn ?? '')
       })
       .catch((requestError: unknown) => setAwsError(getApiErrorMessage(requestError)))
   }, [])
+
+  async function disconnectAwsConnection() {
+    setDisconnecting(true)
+    setAwsError(null)
+    setAwsMessage(null)
+    try {
+      const result = await disconnectAwsConnectionRequest()
+      setHasAwsCredentials(result.connected)
+      setAwsPreview(null)
+      setAwsAccessKey('')
+      setAwsSecretKey('')
+      setAwsRegion('us-east-1')
+      setAwsRoleArn('')
+      setAwsMessage('AWS connection disconnected')
+      announceAwsConnectionStatus(result.connected)
+    } catch (requestError) {
+      setAwsError(getApiErrorMessage(requestError))
+    } finally {
+      setDisconnecting(false)
+    }
+  }
 
   async function saveAwsConnection() {
     if (!awsAccessKey.trim() || !awsSecretKey.trim()) {
       setAwsError('Enter both an AWS access key ID and secret access key.')
       return
     }
+    setSavingAws(true)
     try {
       const result = await saveAwsCredentials({
         aws_access_key_id: awsAccessKey.trim(),
@@ -46,13 +78,17 @@ export function SettingsPage() {
         aws_default_region: awsRegion.trim(),
         aws_role_arn: awsRoleArn.trim() || undefined,
       })
+      setHasAwsCredentials(result.has_aws_credentials)
       setAwsPreview(result.aws_access_key_id_preview)
       setAwsSecretKey('')
       setAwsMessage(`Connected · ${result.aws_access_key_id_preview ?? 'AWS key saved'}`)
       setAwsError(null)
+      announceAwsConnectionStatus(result.has_aws_credentials)
     } catch (requestError) {
       setAwsError(getApiErrorMessage(requestError))
       setAwsMessage(null)
+    } finally {
+      setSavingAws(false)
     }
   }
 
@@ -136,25 +172,42 @@ export function SettingsPage() {
             </label>
             {awsError && <div className="form-feedback error" role="alert">{awsError}</div>}
             {awsMessage && <div className="form-feedback success" role="status">{awsMessage}</div>}
-            {awsPreview && (
-              <div className="aws-connected-row">
-                <span className="aws-connected-badge" role="status">Connected · {awsPreview}</span>
+            <div className="aws-connected-row">
+              <span className={`aws-connected-badge${hasAwsCredentials ? '' : ' is-disconnected'}`} role="status">
+                {hasAwsCredentials ? `Connected · ${awsPreview ?? 'AWS credentials saved'}` : 'Not connected'}
+              </span>
+              {hasAwsCredentials && (
                 <ScanTriggerButton
                   settings={activeSettings}
                   label="Run First Scan →"
                   onBeforeScan={saveCurrentSettings}
                 />
-              </div>
-            )}
-            <button className="button button-secondary" type="button" onClick={() => void saveAwsConnection()}>
-              Save AWS Connection
-            </button>
+              )}
+            </div>
+            <div className="settings-actions aws-connection-actions">
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => void saveAwsConnection()}
+                disabled={savingAws || disconnecting}
+              >
+                {savingAws ? 'Saving...' : 'Save AWS Connection'}
+              </button>
+              <button
+                className="button button-secondary aws-disconnect-button"
+                type="button"
+                onClick={() => void disconnectAwsConnection()}
+                disabled={!hasAwsCredentials || disconnecting || savingAws}
+              >
+                {disconnecting ? 'Disconnecting...' : 'Disconnect AWS Connection'}
+              </button>
+            </div>
           </div>
           </section>
           <aside className="surface-card settings-note">
             <p className="card-kicker">Privacy &amp; execution</p>
             <h2>Read-only by design</h2>
-            <p>These preferences stay in this browser. Scan requests use the backend’s configured AWS credentials and the read-only collectors.</p>
+            <p>Scan preferences stay in this browser. AWS credentials are encrypted for your account and used by the read-only collectors.</p>
             <ul>
               <li>No AWS credentials are stored in the browser.</li>
               <li>Cost Explorer is opt-in and may be unavailable for an account.</li>

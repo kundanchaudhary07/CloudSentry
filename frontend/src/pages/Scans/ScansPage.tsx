@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ScanDrawer } from '../../components/ui/ScanDrawer'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
+import { ScanTriggerButton } from '../../components/ui/ScanTriggerButton'
 import {
   EmptyState,
   ErrorState,
@@ -13,6 +14,7 @@ import {
 } from '../../components/ui/Feedback'
 import { formatDate } from '../../utils/format'
 import { useScanContext } from '../../context/scan-context'
+import { readScanSettings } from '../../services/scanSettings'
 import type { ScanRead, ScanStatus } from '../../types/api'
 
 const scanStatuses: ScanStatus[] = ['RUNNING', 'COMPLETED', 'FAILED']
@@ -34,6 +36,12 @@ export function ScansPage() {
         eyebrow="SCAN OPERATIONS"
         title="Scan history"
         description="Historical inventory runs, posture scores, severity counts, and collector errors."
+        action={
+          <ScanTriggerButton
+            settings={readScanSettings()}
+            label={scans.length === 0 ? 'Run First Scan →' : 'Run New Scan →'}
+          />
+        }
       />
 
       {error && <ErrorState message={error} onRetry={() => void refresh()} />}
@@ -42,7 +50,7 @@ export function ScansPage() {
 
       {!loading && scans.length > 0 && (
         <>
-          <section className="operator-summary-grid scan-summary-grid" aria-label="Scan history summary">
+          <section className="operator-summary-grid scan-summary-grid remediation-kpi-grid" aria-label="Scan history summary">
             <ScanSummaryCard label="Total scans" value={scans.length.toLocaleString()} valueKind="number" tone="blue" icon={<FileText size={19} />} />
             <ScanSummaryCard label="Latest status" status={latestScan?.status} tone={latestScan?.status === 'FAILED' ? 'coral' : 'mint'} icon={<Activity size={19} />} />
             <ScanSummaryCard label="Latest inventory" value={latestCompleted?.resource_count.toLocaleString() ?? '—'} valueKind={latestCompleted ? 'number' : 'text'} tone="violet" icon={<Boxes size={19} />} />
@@ -146,12 +154,14 @@ function ScanSummaryCard({
   icon: ReactNode
 }) {
   return (
-    <article className="surface-card operator-summary-card">
+    <article className="surface-card operator-summary-card remediation-kpi-card">
       <PastelIconBadge tone={tone}>{icon}</PastelIconBadge>
-      <span className="kpi-label">{label}</span>
-      {status
-        ? <StatusPill status={status} className="kpi-status-pill" />
-        : <strong className={valueKind === 'number' ? 'kpi-number' : 'kpi-status-text'}>{value}</strong>}
+      <div>
+        <span className="kpi-label">{label}</span>
+        {status
+          ? <StatusPill status={status} className="kpi-status-pill" />
+          : <strong className={valueKind === 'number' ? 'kpi-number' : 'kpi-status-text'}>{value}</strong>}
+      </div>
     </article>
   )
 }

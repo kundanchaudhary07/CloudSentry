@@ -6,6 +6,7 @@ import {
   Database,
   FileText,
   LayoutDashboard,
+  Lock,
   LogOut,
   Menu,
   Search,
@@ -15,11 +16,16 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { AwsConnectionContext } from '../../context/aws-connection-context'
 import { useScanContext } from '../../context/scan-context'
 import {
+  AWS_CONNECTION_STATUS_EVENT,
+  getCurrentUser,
+  getFindings,
+  getAwsCredentials,
   getApiErrorMessage,
   getDashboard,
 } from '../../services/api'
@@ -44,13 +50,51 @@ const navigation = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
+function notificationStorageKey(userId: string) {
+  return `cloudsentry_read_notifications_${userId}`
+}
+
+function readStoredNotificationIds(userId: string): string[] {
+  const stored = window.localStorage.getItem(notificationStorageKey(userId))
+  if (!stored) return []
+
+  try {
+    const parsed: unknown = JSON.parse(stored)
+    if (Array.isArray(parsed)) {
+      return parsed.filter((id): id is string => typeof id === 'string')
+    }
+  } catch {
+    window.localStorage.removeItem(notificationStorageKey(userId))
+  }
+  return []
+}
+
 export function AppShell() {
   const [search, setSearch] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [dashboard, setDashboard] = useState<DashboardRead | null>(null)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
   const [operator, setOperator] = useState(readOperatorSession)
+  const [notificationUserId, setNotificationUserId] = useState(
+    () => readOperatorSession()?.userId ?? null,
+  )
+  const [notificationReadState, setNotificationReadState] = useState(() => {
+    const userId = readOperatorSession()?.userId ?? null
+    return {
+      userId,
+      ids: userId ? readStoredNotificationIds(userId) : [],
+    }
+  })
+  const [notificationData, setNotificationData] = useState<{
+    scanId: string
+    ids: string[]
+  } | null>(null)
+  const [notificationError, setNotificationError] = useState<string | null>(null)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [awsConnectionPromptOpen, setAwsConnectionPromptOpen] = useState(false)
+  const [awsConnected, setAwsConnected] = useState<boolean | null>(null)
+  const [awsConnectionRevision, setAwsConnectionRevision] = useState(0)
+  const [awsConnectionError, setAwsConnectionError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -78,6 +122,62 @@ export function AppShell() {
   }, [scans])
 
   useEffect(() => {
+    if (notificationUserId) return
+    let active = true
+    getCurrentUser()
+      .then((user) => {
+        if (active) {
+          setNotificationUserId(user.id)
+          setNotificationError(null)
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) setNotificationError(getApiErrorMessage(requestError))
+      })
+    return () => {
+      active = false
+    }
+  }, [notificationUserId])
+
+  useEffect(() => {
+    if (
+      notificationUserId
+      && notificationReadState.userId === null
+      && notificationReadState.ids.length > 0
+    ) {
+      const currentIds = readStoredNotificationIds(notificationUserId)
+      window.localStorage.setItem(
+        notificationStorageKey(notificationUserId),
+        JSON.stringify([...new Set([...currentIds, ...notificationReadState.ids])]),
+      )
+    }
+  }, [notificationReadState, notificationUserId])
+
+  useEffect(() => {
+    const scanId = latestCompleted?.id
+    if (!scanId) return
+    let active = true
+    getFindings({ scan_id: scanId, status: 'OPEN' })
+      .then((findings) => {
+        if (active) {
+          setNotificationData({
+            scanId,
+            ids: findings
+              .filter((finding) => finding.severity === 'CRITICAL' || finding.severity === 'HIGH')
+              .map((finding) => finding.id),
+          })
+          setNotificationError(null)
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) setNotificationError(getApiErrorMessage(requestError))
+      })
+    return () => {
+      active = false
+    }
+  }, [latestCompleted?.id])
+
+  useEffect(() => {
     function closeNavigationOnHistoryChange() {
       setMobileNavOpen(false)
     }
@@ -86,8 +186,42 @@ export function AppShell() {
   }, [])
 
   useEffect(() => subscribeToOperatorSession(() => {
-    setOperator(readOperatorSession())
+    const session = readOperatorSession()
+    setOperator(session)
+    setNotificationUserId(session?.userId ?? null)
   }), [])
+
+  useEffect(() => {
+    let active = true
+    let hasStatusChange = false
+    function updateAwsStatus(connected: boolean) {
+      setAwsConnected(connected)
+      setAwsConnectionError(null)
+      setAwsConnectionRevision((revision) => revision + 1)
+    }
+    function handleAwsStatusChange(event: Event) {
+      if (event instanceof CustomEvent && typeof event.detail === 'boolean') {
+        hasStatusChange = true
+        updateAwsStatus(event.detail)
+      }
+    }
+    getAwsCredentials()
+      .then((result) => {
+        if (active && !hasStatusChange) updateAwsStatus(result.has_aws_credentials)
+      })
+      .catch((requestError: unknown) => {
+        if (active && !hasStatusChange) {
+          setAwsConnected(null)
+          setAwsConnectionError(getApiErrorMessage(requestError))
+          setAwsConnectionRevision((revision) => revision + 1)
+        }
+      })
+    window.addEventListener(AWS_CONNECTION_STATUS_EVENT, handleAwsStatusChange)
+    return () => {
+      active = false
+      window.removeEventListener(AWS_CONNECTION_STATUS_EVENT, handleAwsStatusChange)
+    }
+  }, [])
 
   useEffect(() => {
     function handleShortcut(event: globalThis.KeyboardEvent) {
@@ -119,6 +253,15 @@ export function AppShell() {
       window.removeEventListener('keydown', handleEscape)
     }
   }, [])
+
+  useEffect(() => {
+    if (!awsConnectionPromptOpen) return
+    function closePromptOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') setAwsConnectionPromptOpen(false)
+    }
+    window.addEventListener('keydown', closePromptOnEscape)
+    return () => window.removeEventListener('keydown', closePromptOnEscape)
+  }, [awsConnectionPromptOpen])
 
   function closeProfileAfterPointerLeave() {
     window.setTimeout(() => {
@@ -165,10 +308,36 @@ export function AppShell() {
     return itemPath !== '/inventory' || activeResourceType !== 'RDS'
   }
 
-  const highCriticalCount = dashboard?.high_critical_count ?? 0
+  const notificationIds = latestCompleted
+    ? notificationData?.scanId === latestCompleted.id
+      ? notificationData.ids
+      : (dashboard?.top_findings ?? [])
+        .filter((finding) => (
+          finding.scan_id === latestCompleted.id
+          && finding.status === 'OPEN'
+          && (finding.severity === 'CRITICAL' || finding.severity === 'HIGH')
+        ))
+        .map((finding) => finding.id)
+    : []
+  const readNotificationIds = useMemo(() => {
+    if (notificationReadState.userId === notificationUserId) {
+      return notificationReadState.ids
+    }
+    if (notificationReadState.userId === null && notificationReadState.ids.length > 0) {
+      return notificationReadState.ids
+    }
+    return notificationUserId ? readStoredNotificationIds(notificationUserId) : []
+  }, [notificationReadState, notificationUserId])
+  const unreadCount = notificationIds.filter((id) => !readNotificationIds.includes(id)).length
+  const awsConnectionContextValue = {
+    awsConnected: awsConnected === true,
+    connectionRevision: awsConnectionRevision,
+    openAwsConnectionPrompt: () => setAwsConnectionPromptOpen(true),
+  }
 
   return (
-    <div className={`app-shell${mobileNavOpen ? ' mobile-navigation-open' : ''}`}>
+    <AwsConnectionContext.Provider value={awsConnectionContextValue}>
+      <div className={`app-shell${mobileNavOpen ? ' mobile-navigation-open' : ''}`}>
       {mobileNavOpen && (
         <button
           className="mobile-nav-backdrop"
@@ -280,37 +449,100 @@ export function AppShell() {
             <kbd>Ctrl K</kbd>
           </form>
 
-          <div className={`api-indicator ${apiConnection}`} role="status" title={dashboardError ?? undefined}>
+          <div
+            className={`api-indicator ${apiConnection}${apiConnection === 'connected' && awsConnected === false ? ' aws-disconnected' : ''}${apiConnection === 'connected' && awsConnectionError ? ' aws-status-unavailable' : ''}`}
+            role="status"
+            title={awsConnectionError ?? (awsConnected === false ? 'API connected · AWS not connected' : dashboardError ?? undefined)}
+          >
             <span className="status-dot" />
             <span>
               {apiConnection === 'checking'
                 ? 'Connecting'
                 : apiConnection === 'connected'
-                  ? 'Connected'
+                  ? awsConnected === false
+                    ? 'Not connected'
+                    : awsConnectionError
+                      ? 'AWS status unavailable'
+                      : 'Connected'
                   : 'API unavailable'}
             </span>
           </div>
-          <ScanTriggerButton settings={settings} />
+          <ScanTriggerButton settings={settings} showError={false} />
           <div className="environment-pill" title="Region from the latest completed scan">
             <span className="aws-mark" aria-hidden="true">aws</span>
             <span>{latestCompleted?.regions[0] ?? 'AWS region'}</span>
             <ChevronDown size={14} aria-hidden="true" />
           </div>
-          <Link
-            to="/findings?status=OPEN"
+          <button
             className="notification-link"
-            aria-label={dashboardError ? 'Finding count unavailable' : `${highCriticalCount} open high or critical findings`}
-            title={dashboardError ?? `${highCriticalCount} open high or critical findings`}
+            type="button"
+            aria-label={notificationError ? 'Finding count unavailable' : `${unreadCount} unread high or critical findings`}
+            title={notificationError ?? `${unreadCount} unread high or critical findings`}
+            onClick={() => {
+              const nextReadIds = [...new Set([...readNotificationIds, ...notificationIds])]
+              if (notificationUserId) {
+                window.localStorage.setItem(
+                  notificationStorageKey(notificationUserId),
+                  JSON.stringify(nextReadIds),
+                )
+              }
+              setNotificationReadState({ userId: notificationUserId, ids: nextReadIds })
+              navigate('/findings?status=OPEN')
+            }}
           >
             <Bell size={19} aria-hidden="true" />
-            {highCriticalCount > 0 && <span className="notification-count">{highCriticalCount}</span>}
-          </Link>
+            {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
+          </button>
         </header>
 
         <main className="page-content">
           <Outlet />
         </main>
       </div>
-    </div>
+      </div>
+      {awsConnectionPromptOpen && (
+        <div
+          className="aws-connect-prompt-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAwsConnectionPromptOpen(false)
+          }}
+        >
+          <section
+            className="aws-connect-prompt"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aws-connect-prompt-title"
+          >
+            <div className="aws-connect-prompt-message">
+              <span className="aws-connect-prompt-icon" aria-hidden="true">
+                <Lock size={19} />
+              </span>
+              <p id="aws-connect-prompt-title">
+                Connect your AWS account in Settings before running a scan.
+              </p>
+            </div>
+            <div className="aws-connect-prompt-actions">
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() => {
+                  setAwsConnectionPromptOpen(false)
+                  navigate('/settings')
+                }}
+              >
+                Go to Settings →
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setAwsConnectionPromptOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </AwsConnectionContext.Provider>
   )
 }

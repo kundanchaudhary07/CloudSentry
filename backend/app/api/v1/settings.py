@@ -38,6 +38,11 @@ class AwsCredentialsRead(BaseModel):
     aws_role_arn: str | None = None
 
 
+class AwsConnectionDisconnectRead(BaseModel):
+    connected: bool
+    message: str
+
+
 def _fernet() -> Fernet:
     key = hashlib.sha256(app_get_settings().app_secret_key.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
@@ -119,6 +124,23 @@ def get_aws_credentials(
             aws_default_region=app_get_settings().aws_region,
         )
     return _credential_read(credential)
+
+
+@router.delete("/aws-credentials", response_model=AwsConnectionDisconnectRead)
+def delete_aws_credentials(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AwsConnectionDisconnectRead:
+    credential = db.scalar(
+        select(UserAwsCredential).where(UserAwsCredential.user_id == current_user.id)
+    )
+    if credential is not None:
+        db.delete(credential)
+        db.commit()
+    return AwsConnectionDisconnectRead(
+        connected=False,
+        message="AWS connection disconnected.",
+    )
 
 
 def _credential_read(credential: UserAwsCredential) -> AwsCredentialsRead:

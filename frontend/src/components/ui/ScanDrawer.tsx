@@ -50,7 +50,7 @@ export function ScanDrawer({
   }, [scan.id])
 
   return (
-    <Drawer title="Scan details" subtitle={scan.id} icon={<Activity size={20} />} tone="blue" onClose={onClose}>
+    <Drawer title="Scan details" subtitle={scan.id} icon={<Activity size={20} />} tone="blue" onClose={onClose} solidDetail>
       {loading && <LoadingState label="Loading scan details…" />}
       {error && <ErrorState message={error} onRetry={() => void load()} />}
       {detail && (

@@ -28,7 +28,9 @@ import { CloudSentryLogo } from '../../components/ui/CloudSentryLogo'
 import { EmptyState, ErrorState, LoadingState, SeverityPill } from '../../components/ui/Feedback'
 import { GradientHeroBanner } from '../../components/ui/GradientHeroBanner'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
+import { ScanTriggerButton } from '../../components/ui/ScanTriggerButton'
 import { getApiErrorMessage, getDashboard } from '../../services/api'
+import { readScanSettings } from '../../services/scanSettings'
 import type { DashboardRead, SeverityCounts } from '../../types/api'
 import { formatAmount, formatDate } from '../../utils/format'
 import './dashboard.css'
@@ -107,13 +109,13 @@ export function DashboardPage() {
       ? 'All Systems Healthy'
       : 'Review Security Posture'
   const highCriticalCount = dashboard?.high_critical_count ?? 0
-  const heroAction = scans.length === 0
-    ? { label: 'Configure & Run Scan →', to: '/settings' }
+  const heroAction: { type: 'scan'; label: string } | { type: 'link'; label: string; to: string } = scans.length === 0
+    ? { type: 'scan', label: 'Run First Scan →' }
     : !latestCompleted
-      ? { label: 'Run New Scan →', to: '/settings' }
+      ? { type: 'scan', label: 'Run New Scan →' }
     : highCriticalCount > 0
-      ? { label: `Inspect ${highCriticalCount} Critical/High →`, to: '/findings' }
-      : { label: 'View Latest Scan Report →', to: '/scans' }
+      ? { type: 'link', label: `Inspect ${highCriticalCount} Critical/High →`, to: '/findings' }
+      : { type: 'link', label: 'View Latest Scan Report →', to: '/scans' }
 
   const refreshDashboard = useCallback(() => {
     setLoading(true)
@@ -148,7 +150,9 @@ export function DashboardPage() {
               }
               status={statusText}
               icon={<Cloud size={25} strokeWidth={1.8} />}
-              action={<Link className="hero-action-link" to={heroAction.to}>{heroAction.label}</Link>}
+              action={heroAction.type === 'scan'
+                ? <ScanTriggerButton settings={readScanSettings()} label={heroAction.label} />
+                : <Link className="hero-action-link" to={heroAction.to}>{heroAction.label}</Link>}
             />
 
             <article className="surface-card posture-feature">
@@ -291,7 +295,9 @@ export function DashboardPage() {
                       className="priority-row"
                       key={finding.id}
                     >
-                      <SeverityPill severity={finding.severity} />
+                      <span className="finding-row-severity">
+                        <SeverityPill severity={finding.severity} />
+                      </span>
                       <span className="priority-copy">
                         <strong>{finding.title}</strong>
                         <small>{finding.resource_id} · {finding.rule_id}</small>

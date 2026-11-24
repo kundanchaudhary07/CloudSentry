@@ -118,12 +118,12 @@ export function RemediationPage() {
       {scansLoading && <LoadingState label="Checking scan history…" />}
       {!scansLoading && !scansError && scans.length === 0 && <NoScansState />}
       {error && <ErrorState message={error} onRetry={() => void loadQueue()} />}
-      {updateFeedback && <div className="form-feedback success" role="status">{updateFeedback}</div>}
+      {updateFeedback && <div className="form-feedback success remediation-feedback" role="status">{updateFeedback}</div>}
       {loading && scans.length > 0 && <LoadingState label="Loading the operator queue…" />}
 
       {!scansLoading && scans.length > 0 && !loading && !error && (
         <>
-          <section className="operator-summary-grid" aria-label="Remediation queue totals">
+          <section className="operator-summary-grid remediation-kpi-grid" aria-label="Remediation queue totals">
             <OperatorSummaryCard label="Active queue" value={findings.length} tone="blue" icon={<Wrench size={19} />} />
             <OperatorSummaryCard label="Open" value={findings.filter((item) => item.status === 'OPEN').length} tone="amber" icon={<CircleDot size={19} />} />
             <OperatorSummaryCard label="Acknowledged" value={findings.filter((item) => item.status === 'ACKNOWLEDGED').length} tone="violet" icon={<CheckCheck size={19} />} />
@@ -154,9 +154,9 @@ export function RemediationPage() {
               description={findings.length === 0 ? 'No open or acknowledged findings are waiting for operator review.' : 'Clear the search filter to see the rest of the operator queue.'}
             />
           ) : (
-            <div className="table-card surface-card">
-              <div className="table-scroll">
-                <table className="data-table">
+            <div className="table-card surface-card remediation-table-card">
+              <div className="table-scroll remediation-table-wrapper">
+                <table className="data-table remediation-table">
                   <thead><tr><th>Finding</th><th>Severity</th><th>Resource</th><th>Status</th><th>Last updated</th><th>Quick action</th></tr></thead>
                   <tbody>
                     {visibleFindings.map((finding) => (
@@ -176,7 +176,7 @@ export function RemediationPage() {
                           <div className="quick-actions">
                             {finding.status === 'OPEN' && (
                               <button
-                                className="button button-table"
+                                className="button button-table remediation-action-btn"
                                 type="button"
                                 onClick={() => void quickTransition(finding, 'ACKNOWLEDGED')}
                                 disabled={updating?.findingId === finding.id}
@@ -185,7 +185,7 @@ export function RemediationPage() {
                               </button>
                             )}
                             <button
-                              className="button button-table"
+                              className="button button-table remediation-action-btn"
                               type="button"
                               onClick={() => void quickTransition(finding, 'RESOLVED')}
                               disabled={updating?.findingId === finding.id}
@@ -228,10 +228,12 @@ function OperatorSummaryCard({
   icon: ReactNode
 }) {
   return (
-    <article className="surface-card operator-summary-card">
+    <article className="surface-card operator-summary-card remediation-kpi-card">
       <PastelIconBadge tone={tone}>{icon}</PastelIconBadge>
-      <span className="kpi-label">{label}</span>
-      <strong className="kpi-number">{value.toLocaleString()}</strong>
+      <div>
+        <span className="kpi-label">{label}</span>
+        <strong className="kpi-number">{value.toLocaleString()}</strong>
+      </div>
     </article>
   )
 }

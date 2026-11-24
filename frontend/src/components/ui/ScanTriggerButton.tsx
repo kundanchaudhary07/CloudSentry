@@ -1,7 +1,8 @@
-import { Check } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Lock } from 'lucide-react'
+import { useState } from 'react'
+import { useAwsConnection } from '../../context/aws-connection-context'
 import { useScanContext } from '../../context/scan-context'
-import { getApiErrorMessage, triggerScan } from '../../services/api'
+import { getApiErrorMessage, getScanDetail, triggerScan } from '../../services/api'
 import { toScanRequest, type ScanSettings } from '../../services/scanSettings'
 import type { ScanRead } from '../../types/api'
 
@@ -10,47 +11,66 @@ export function ScanTriggerButton({
   label,
   onBeforeScan,
   onSuccess,
+  showError = true,
 }: {
   settings: ScanSettings
   label?: string
   onBeforeScan?: () => void | Promise<void>
   onSuccess?: (scan: ScanRead) => void
+  showError?: boolean
 }) {
-  const { refresh, scans } = useScanContext()
+  const { refresh } = useScanContext()
+  const { awsConnected, connectionRevision, openAwsConnectionPrompt } = useAwsConnection()
   const [loading, setLoading] = useState(false)
-  const [completed, setCompleted] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const idleLabel = label ?? `${scans.length === 0 ? 'Run Initial Scan' : 'Run New Scan'} →`
-
-  useEffect(() => {
-    if (!completed) return
-    const timer = window.setTimeout(() => {
-      setCompleted(false)
-      setSuccess(null)
-    }, 2400)
-    return () => window.clearTimeout(timer)
-  }, [completed])
+  const [scanState, setScanState] = useState<{
+    revision: number
+    label: string
+    error: string | null
+  } | null>(null)
+  const initialButtonLabel = label ?? 'Run New Scan →'
+  const locked = !awsConnected
+  const buttonLabel = scanState?.revision === connectionRevision
+    ? scanState.label
+    : initialButtonLabel
+  const visibleLabel = locked
+    ? initialButtonLabel.replace(/\s*→$/, '')
+    : buttonLabel
 
   async function runScan() {
+    if (locked) {
+      openAwsConnectionPrompt()
+      return
+    }
+    if (loading) return
     setLoading(true)
-    setCompleted(false)
-    setError(null)
-    setSuccess(null)
+    setScanState({
+      revision: connectionRevision,
+      label: 'Scanning...',
+      error: null,
+    })
     try {
       await onBeforeScan?.()
       const scan = await triggerScan(toScanRequest(settings))
       await refresh()
-      if (scan.status === 'COMPLETED') {
-        setCompleted(true)
-        setSuccess(`Scan completed · ${scan.resource_count.toLocaleString()} resources`)
-      } else {
-        setSuccess(`Scan ended with status ${scan.status.toLowerCase()}.`)
+      let latest = scan
+      while (latest.status === 'RUNNING') {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000))
+        latest = await getScanDetail(scan.id)
+        await refresh()
       }
-      onSuccess?.(scan)
+      setScanState({
+        revision: connectionRevision,
+        label: 'Scan Ended',
+        error: null,
+      })
+      onSuccess?.(latest)
     } catch (requestError) {
       await refresh()
-      setError(getApiErrorMessage(requestError))
+      setScanState({
+        revision: connectionRevision,
+        label: 'Scan Ended',
+        error: getApiErrorMessage(requestError),
+      })
     } finally {
       setLoading(false)
     }
@@ -59,21 +79,21 @@ export function ScanTriggerButton({
   return (
     <div className="scan-trigger">
       <button
-        className="button button-primary"
+        className={`button button-primary${locked ? ' aws-scan-locked' : ''}`}
         type="button"
         onClick={() => void runScan()}
-        disabled={loading}
-        aria-label={loading ? 'Scanning AWS' : completed ? 'Scan complete' : idleLabel}
+        disabled={loading && !locked}
+        aria-disabled={locked ? 'true' : undefined}
+        aria-label={locked ? `AWS connection required. ${visibleLabel}` : buttonLabel}
       >
-        {loading
-          ? <span className="button-spinner" aria-hidden="true" />
-          : completed
-            ? <Check size={16} aria-hidden="true" />
-            : null}
-        <span>{loading ? 'Scanning AWS…' : completed ? 'Scan Complete ✓' : idleLabel}</span>
+        {locked
+          ? <Lock size={14} aria-hidden="true" />
+          : loading && <span className="button-spinner" aria-hidden="true" />}
+        <span>{visibleLabel}</span>
       </button>
-      {error && <span className="inline-feedback error" role="alert">{error}</span>}
-      {success && <span className="inline-feedback success" role="status">{success}</span>}
+      {showError && scanState?.revision === connectionRevision && scanState.error && (
+        <span className="inline-feedback error" role="alert">{scanState.error}</span>
+      )}
     </div>
   )
 }
