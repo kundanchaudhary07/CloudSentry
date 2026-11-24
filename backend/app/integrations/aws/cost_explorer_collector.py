@@ -11,10 +11,15 @@ from app.integrations.aws.models import CollectionError
 from app.rules.models import CostExplorerSummary, ServiceCost
 
 DISABLED_ERROR_CODES = {
+    "AccessDenied",
+    "AccessDeniedException",
     "DataUnavailableException",
     "OptInRequiredException",
     "SubscriptionRequiredException",
 }
+SETUP_ERROR_NOTE = (
+    "Enable Cost Explorer in the AWS Billing Console or grant ce:GetCostAndUsage permission."
+)
 
 
 def _periods(today: date) -> tuple[date, date, date, date]:
@@ -104,7 +109,7 @@ def _query_costs(
 
 def collect_cost_explorer(
     session: boto3.Session,
-    enabled: bool = False,
+    enabled: bool = True,
     *,
     today: date | None = None,
 ) -> CostExplorerSummary:
@@ -129,8 +134,8 @@ def collect_cost_explorer(
     if current is None:
         code = errors[-1].code if errors else ""
         note = (
-            "Cost Explorer is not enabled or read access is unavailable."
-            if code in DISABLED_ERROR_CODES or code in {"AccessDenied", "AccessDeniedException"}
+            SETUP_ERROR_NOTE
+            if code in DISABLED_ERROR_CODES
             else "Cost Explorer data could not be retrieved."
         )
         return CostExplorerSummary(cost_explorer_available=False, error_note=note)
@@ -157,8 +162,8 @@ def collect_cost_explorer(
     if not available:
         code = errors[-1].code if errors else ""
         note = (
-            "Cost Explorer is not enabled or read access is unavailable."
-            if code in DISABLED_ERROR_CODES or code in {"AccessDenied", "AccessDeniedException"}
+            SETUP_ERROR_NOTE
+            if code in DISABLED_ERROR_CODES
             else "Cost Explorer returned incomplete billing data."
         )
 

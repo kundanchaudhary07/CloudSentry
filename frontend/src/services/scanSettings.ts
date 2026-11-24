@@ -1,6 +1,7 @@
 import type { ScanCreateRequest } from '../types/api'
 
-const STORAGE_KEY = 'cloudsentry.scan-settings.v1'
+const STORAGE_KEY = 'cloudsentry.scan-settings.v2'
+const LEGACY_STORAGE_KEY = 'cloudsentry.scan-settings.v1'
 
 export interface ScanSettings {
   regions: string[]
@@ -13,7 +14,7 @@ export interface ScanSettings {
 
 export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   regions: [],
-  include_cost_explorer: false,
+  include_cost_explorer: true,
   cpu_threshold: 5,
   lookback_days: 7,
   required_tags: ['Environment', 'Owner'],
@@ -32,7 +33,8 @@ function stringArray(value: unknown, fallback: string[]): string[] {
 
 export function readScanSettings(): ScanSettings {
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
+    const storedSettings = window.localStorage.getItem(STORAGE_KEY)
+    const stored = storedSettings ?? window.localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!stored) return { ...DEFAULT_SCAN_SETTINGS }
     const parsed: unknown = JSON.parse(stored)
     if (!isRecord(parsed)) throw new Error('Saved scan settings are not an object.')
@@ -51,10 +53,12 @@ export function readScanSettings(): ScanSettings {
         ? parsed.lookback_days
         : DEFAULT_SCAN_SETTINGS.lookback_days
 
-    return {
+    const settings = {
       regions: stringArray(parsed.regions, DEFAULT_SCAN_SETTINGS.regions),
       include_cost_explorer:
-        typeof parsed.include_cost_explorer === 'boolean'
+        !storedSettings
+          ? true
+          : typeof parsed.include_cost_explorer === 'boolean'
           ? parsed.include_cost_explorer
           : DEFAULT_SCAN_SETTINGS.include_cost_explorer,
       cpu_threshold: threshold,
@@ -65,6 +69,8 @@ export function readScanSettings(): ScanSettings {
         DEFAULT_SCAN_SETTINGS.required_cost_tags,
       ),
     }
+    if (!storedSettings) saveScanSettings(settings)
+    return settings
   } catch (error) {
     console.warn('Saved scan settings could not be loaded; defaults are in use.', error)
     return { ...DEFAULT_SCAN_SETTINGS }

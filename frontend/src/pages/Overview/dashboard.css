@@ -502,8 +502,7 @@
   line-height: 1.45;
 }
 
-.cost-sparkline,
-.cost-sparkline-empty {
+.cost-sparkline {
   width: 79px;
   height: 46px;
   align-self: center;
@@ -523,12 +522,6 @@
 
 .cost-sparkline circle {
   fill: #10b981;
-}
-
-.cost-sparkline-empty {
-  display: grid;
-  place-items: center;
-  color: #9aa5b5;
 }
 
 .cost-trend {
@@ -623,6 +616,20 @@
 .trend-chart {
   width: 100%;
   height: 225px;
+}
+
+.trend-chart-timestamps {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 0 12px 0 56px;
+  color: var(--cs-muted);
+  font-size: var(--text-caption);
+}
+
+.trend-chart-timestamps span:last-child {
+  text-align: right;
 }
 
 .priority-list {

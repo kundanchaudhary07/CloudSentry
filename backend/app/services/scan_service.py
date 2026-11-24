@@ -97,7 +97,7 @@ def run_and_persist_scan(
     user_id: UUID,
     scan_id: UUID | None = None,
     regions: list[str] | None = None,
-    include_cost_explorer: bool = False,
+    include_cost_explorer: bool = True,
     cpu_threshold: float = 5.0,
     lookback_days: int = 7,
     required_tags: Sequence[str] = ("Environment", "Owner"),
@@ -132,9 +132,10 @@ def run_and_persist_scan(
             snapshot,
             lookback_days=lookback_days,
         )
+        cost_explorer_enabled = include_cost_explorer and get_settings().aws_enable_cost_explorer
         cost_explorer = dependencies.cost_explorer_collector(
             aws_session,
-            enabled=include_cost_explorer,
+            enabled=cost_explorer_enabled,
         )
         security_report = dependencies.security_evaluator(snapshot, required_tags)
         cost_report = dependencies.cost_evaluator(
@@ -149,7 +150,7 @@ def run_and_persist_scan(
         collection_errors: list[dict[str, Any]] = [
             error.model_dump(mode="json") for error in [*snapshot.errors, *metrics.errors]
         ]
-        if include_cost_explorer and not cost_explorer.cost_explorer_available:
+        if cost_explorer_enabled and not cost_explorer.cost_explorer_available:
             collection_errors.append(
                 {
                     "service": "ce",

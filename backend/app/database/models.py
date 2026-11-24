@@ -71,7 +71,7 @@ class ScanSetting(Base):
         unique=True, index=True, nullable=False,
     )
     regions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
-    include_cost_explorer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    include_cost_explorer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     cpu_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=5.0)
     lookback_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
     required_tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)

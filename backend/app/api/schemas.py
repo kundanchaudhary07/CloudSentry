@@ -14,7 +14,7 @@ from app.database.models import (
 
 class ScanCreateRequest(BaseModel):
     regions: list[str] | None = None
-    include_cost_explorer: bool = False
+    include_cost_explorer: bool = True
     cpu_threshold: float = Field(default=5.0, ge=0, le=100)
     lookback_days: int = Field(default=7, ge=1)
     required_tags: list[str] = Field(default_factory=lambda: ["Environment", "Owner"])

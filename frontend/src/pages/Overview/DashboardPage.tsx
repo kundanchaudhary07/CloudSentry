@@ -206,7 +206,7 @@ export function DashboardPage() {
                 <span className={`cost-trend${costExplorer?.trend_percent_change ? Number(costExplorer.trend_percent_change) > 0 ? ' trend-up' : ' trend-down' : ''}`}>
                   {costExplorer?.cost_explorer_available && costExplorer.trend_percent_change !== null
                     ? <>{Number(costExplorer.trend_percent_change) > 0 ? <ArrowUpRight size={14} /> : Number(costExplorer.trend_percent_change) < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}{Math.abs(Number(costExplorer.trend_percent_change))}% vs prior period</>
-                    : <><Minus size={14} /> Trend unavailable</>}
+                    : <>Trend unavailable</>}
                 </span>
               </Link>
               <Link to="/inventory" className="surface-card compact-metric resource-metric-card">
@@ -242,35 +242,47 @@ export function DashboardPage() {
               {trend.length === 0 ? (
                 <EmptyState title="No completed scans" description="Posture trend appears after a completed scan." />
               ) : (
-                <div className="trend-chart">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trend} margin={{ top: 12, right: 12, bottom: 0, left: -18 }}>
-                      <CartesianGrid stroke="var(--cs-line)" strokeDasharray="3 4" vertical={false} />
-                      <XAxis
-                        dataKey="date_label"
-                        axisLine={false}
-                        tickLine={false}
-                        interval="preserveStartEnd"
-                        minTickGap={28}
-                        tick={{ fill: 'var(--cs-muted)', fontSize: 'var(--text-caption)' }}
-                      />
-                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: 'var(--cs-muted)', fontSize: 'var(--text-caption)' }} />
-                      <Tooltip
-                        formatter={(value) => [`${value ?? '—'} / 100`, 'Posture score']}
-                        labelFormatter={(label) => `Scan ${label}`}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="posture_score"
-                        stroke="var(--cs-blue)"
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: 'var(--cs-card)', strokeWidth: 2 }}
-                        activeDot={{ r: 5 }}
-                        connectNulls
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <>
+                  <div className="trend-chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trend} margin={{ top: 12, right: 12, bottom: 10, left: -4 }}>
+                        <CartesianGrid stroke="var(--cs-line)" strokeDasharray="3 4" vertical={false} />
+                        <XAxis
+                          dataKey="date_label"
+                          axisLine={false}
+                          tickLine={false}
+                          height={0}
+                          tick={false}
+                        />
+                        <YAxis
+                          domain={[0, 100]}
+                          ticks={[0, 25, 50, 75, 100]}
+                          interval={0}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: 'var(--cs-muted)', fontSize: 'var(--text-caption)' }}
+                        />
+                        <Tooltip
+                          formatter={(value) => [`${value ?? '—'} / 100`, 'Posture score']}
+                          labelFormatter={(label) => `Scan ${label}`}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="posture_score"
+                          stroke="var(--cs-blue)"
+                          strokeWidth={2.5}
+                          dot={{ r: 3, fill: 'var(--cs-card)', strokeWidth: 2 }}
+                          activeDot={{ r: 5 }}
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="trend-chart-timestamps" aria-label="First and most recent scan times">
+                    <span>{trend[0].date_label}</span>
+                    {trend.length > 1 && <span>{trend[trend.length - 1].date_label}</span>}
+                  </div>
+                </>
               )}
             </article>
 
@@ -384,12 +396,12 @@ function CostSparkline({
   current?: string | null
 }) {
   if (!available || prior === null || prior === undefined || current === null || current === undefined) {
-    return <span className="cost-sparkline-empty" aria-hidden="true"><Minus size={18} /></span>
+    return null
   }
   const priorValue = Number(prior)
   const currentValue = Number(current)
   if (!Number.isFinite(priorValue) || !Number.isFinite(currentValue)) {
-    return <span className="cost-sparkline-empty" aria-hidden="true"><Minus size={18} /></span>
+    return null
   }
   const max = Math.max(priorValue, currentValue, 0.01)
   const startY = 37 - (priorValue / max) * 25

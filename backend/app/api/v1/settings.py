@@ -58,7 +58,7 @@ def get_settings(
         setting = ScanSetting(
             user_id=current_user.id,
             regions=[],
-            include_cost_explorer=False,
+            include_cost_explorer=True,
             cpu_threshold=5.0,
             lookback_days=7,
             required_tags=["Environment", "Owner"],

@@ -114,8 +114,8 @@ export function NoScansState() {
   )
 }
 
-export function SeverityPill({ severity }: { severity: string }) {
-  return <span className={`severity-pill severity-${severity.toLowerCase()}`}>{severity}</span>
+export function SeverityPill({ severity, className = '' }: { severity: string; className?: string }) {
+  return <span className={`severity-pill severity-${severity.toLowerCase()}${className ? ` ${className}` : ''}`}>{severity}</span>
 }
 
 export function StatusPill({ status, className = '' }: { status: string; className?: string }) {

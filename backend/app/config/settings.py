@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AWS_DEFAULT_REGION", "AWS_REGION"),
     )
     aws_regions: str = ""
+    aws_enable_cost_explorer: bool = True
     app_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24

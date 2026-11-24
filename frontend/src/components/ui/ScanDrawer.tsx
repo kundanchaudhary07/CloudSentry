@@ -97,9 +97,12 @@ export function ScanDrawer({
             ) : (
               <div className="drawer-finding-list">
                 {detail.findings.map((finding) => (
-                  <div className="drawer-finding-row" key={finding.id}>
-                    <SeverityPill severity={finding.severity} />
-                    <span>{finding.title} <small>{finding.resource_id}</small></span>
+                  <div className="drawer-finding-row scan-detail-finding-row" key={finding.id}>
+                    <SeverityPill severity={finding.severity} className="scan-detail-finding-severity" />
+                    <span className="scan-detail-finding-info">
+                      {finding.title}
+                      <small>{finding.resource_id}</small>
+                    </span>
                   </div>
                 ))}
               </div>

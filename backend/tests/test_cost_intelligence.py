@@ -415,7 +415,9 @@ def test_cost_explorer_unavailable_or_denied_returns_sanitized_summary(
 
     assert not summary.cost_explorer_available
     assert summary.current_period_total is None
-    assert summary.error_note == "Cost Explorer is not enabled or read access is unavailable."
+    assert summary.error_note == (
+        "Enable Cost Explorer in the AWS Billing Console or grant ce:GetCostAndUsage permission."
+    )
     assert "sensitive-cost-explorer-response" not in summary.error_note
 
 

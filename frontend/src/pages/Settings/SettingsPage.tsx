@@ -210,7 +210,7 @@ export function SettingsPage() {
             <p>Scan preferences stay in this browser. AWS credentials are encrypted for your account and used by the read-only collectors.</p>
             <ul>
               <li>No AWS credentials are stored in the browser.</li>
-              <li>Cost Explorer is opt-in and may be unavailable for an account.</li>
+              <li>Cost Explorer is included by default and may be unavailable for an account.</li>
               <li>CPU findings are review signals, not savings estimates.</li>
             </ul>
           </aside>
