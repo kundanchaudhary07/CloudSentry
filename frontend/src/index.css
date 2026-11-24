@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+:root {
+  --cs-navy: #0f1624;
+  --cs-navy-soft: #232d42;
+  --cs-canvas: #faf8f4;
+  --cs-card: #ffffff;
+  --cs-ink: #0f172a;
+  --cs-muted: #64748b;
+  --cs-line: #f1efea;
+  --cs-blue: #1d63ed;
+  --cs-orange: #f59e0b;
+  --cs-green: #10b981;
+  --cs-red: #f43f5e;
+  --cs-violet: #8b5cf6;
+  --cs-card-radius: 24px;
+  --cs-card-shadow: 0 12px 32px -12px rgb(15 23 42 / 6%);
+  --cs-motion-standard: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Strict Content & Card Type Scale */
+  --text-page-title: 1.75rem;
+  --text-card-hero: 1.85rem;
+  --text-kpi-number: 1.75rem;
+  --text-kpi-status: 1.25rem;
+  --text-section-title: 1.125rem;
+  --text-body: 0.9375rem;
+  --text-table: 0.875rem;
+  --text-label: 0.8125rem;
+  --text-caption: 0.8125rem;
+
+  --cs-font-kpi: var(--text-kpi-number);
+  --cs-font-kpi-status: var(--text-kpi-status);
+  --cs-font-label: var(--text-label);
+  --cs-font-body: var(--text-body);
+  --cs-font-table: var(--text-table);
+  font-size: 16px;
+  font-family: "Plus Jakarta Sans", "Segoe UI", Arial, sans-serif;
+  color: var(--cs-ink);
+  background-color: var(--cs-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background-image: url("/CloudSentryBg.png");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+}
+
+:root {
+  --cs-glass-background: rgba(255, 255, 255, 0.52);
+  --cs-glass-border: 1px solid rgba(255, 255, 255, 0.65);
+  --cs-glass-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  --cs-glass-blur: blur(18px) saturate(145%);
+  --cs-dropdown-background: #ffffff;
+}
+
+.cs-dropdown-menu,
+[role="menu"],
+[role="listbox"],
+.dropdown-menu,
+.popover-menu,
+.profile-dropdown,
+select option {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 16px;
+  box-shadow:
+    0 18px 40px rgba(15, 23, 42, 0.14),
+    0 4px 12px rgba(15, 23, 42, 0.06);
+  z-index: 1200;
+}
+
+select {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  overflow-x: clip;
+  background-color: var(--cs-canvas);
+}
+
+body {
+  position: relative;
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: clip;
+  background-color: var(--cs-canvas);
+  font-family: "Plus Jakarta Sans", "Segoe UI", Arial, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.app-shell,
+.app-main,
+.main-content,
+.page-content,
+.auth-page {
+  background: transparent;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  cursor: pointer;
+  transition:
+    color var(--cs-motion-standard),
+    background-color var(--cs-motion-standard),
+    border-color var(--cs-motion-standard),
+    box-shadow var(--cs-motion-standard),
+    transform var(--cs-motion-standard);
+}
+
+input,
+select,
+textarea {
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgb(29 99 237 / 24%);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #dce8ff;
+  color: #0f172a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

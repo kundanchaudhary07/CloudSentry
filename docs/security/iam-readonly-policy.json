@@ -1,0 +1,70 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InspectComputeAndVolumes",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeRegions"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "InspectS3BucketMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:GetBucketPolicy",
+        "s3:GetBucketAcl",
+        "s3:GetBucketLocation",
+        "s3:GetBucketTagging"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "InspectIamIdentitiesAndPolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListUsers",
+        "iam:ListRoles",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "InspectRdsInstances",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstances",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "InspectCloudTrailStatus",
+      "Effect": "Allow",
+      "Action": [
+        "cloudtrail:DescribeTrails",
+        "cloudtrail:GetTrailStatus"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadCloudWatchMetrics",
+      "Effect": "Allow",
+      "Action": "cloudwatch:GetMetricStatistics",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadCostExplorerUsage",
+      "Effect": "Allow",
+      "Action": "ce:GetCostAndUsage",
+      "Resource": "*"
+    }
+  ]
+}

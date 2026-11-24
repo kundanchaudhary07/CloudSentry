@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cloudsentry
+      POSTGRES_USER: cloudsentry
+      POSTGRES_PASSWORD: cloudsentry
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudsentry -d cloudsentry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql+psycopg://cloudsentry:cloudsentry@postgres:5432/cloudsentry
+      - 'CORS_ORIGINS=["http://localhost:5173","http://localhost:8080"]'
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - AWS_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - AWS_REGIONS=${AWS_REGIONS:-us-east-1}
+      - LOG_LEVEL=INFO
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - APP_SECRET_KEY=${APP_SECRET_KEY:-change-me-in-production}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8080}
+      - GOOGLE_CLIENT_ID
+      - GOOGLE_CLIENT_SECRET
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/v1/auth/oauth/google/callback}
+      - AWS_COGNITO_DOMAIN
+      - AWS_COGNITO_CLIENT_ID
+      - AWS_COGNITO_CLIENT_SECRET
+      - AWS_COGNITO_REDIRECT_URI=${AWS_COGNITO_REDIRECT_URI:-http://localhost:8000/api/v1/auth/oauth/aws/callback}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
