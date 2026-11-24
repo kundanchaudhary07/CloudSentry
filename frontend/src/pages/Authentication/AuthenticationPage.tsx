@@ -195,7 +195,7 @@ export function AuthenticationPage() {
                 title="Continue with Google"
                 onClick={() => {
                   if (googleConfigured) {
-                    window.location.assign('/api/v1/auth/oauth/google/login')
+                    window.location.assign(`${import.meta.env.VITE_API_BASE_URL}/auth/oauth/google/login`)
                   } else {
                     showProviderUnavailable('Google. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET')
                   }
