@@ -2,13 +2,16 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  HelpCircle,
   LockKeyhole,
   Mail,
   ShieldCheck,
+  User,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { HowItWorksModal } from '../../components/common/HowItWorksModal'
 import { CloudSentryLogo } from '../../components/ui/CloudSentryLogo'
 import {
   getApiErrorMessage,
@@ -37,6 +40,8 @@ export function AuthenticationPage() {
     return oauthError ? decodeURIComponent(oauthError) : ''
   })
   const [googleConfigured, setGoogleConfigured] = useState(false)
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false)
+  const closeHowItWorks = useCallback(() => setHowItWorksOpen(false), [])
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -109,6 +114,14 @@ export function AuthenticationPage() {
           </p>
         </div>
         <AuthPreviewCard />
+        <button
+          className="how-it-works-trigger auth-how-it-works-trigger"
+          type="button"
+          onClick={() => setHowItWorksOpen(true)}
+        >
+          <HelpCircle size={16} aria-hidden="true" />
+          How It Works
+        </button>
       </section>
 
       <section className="auth-form-panel" aria-label="Sign in">
@@ -124,7 +137,7 @@ export function AuthenticationPage() {
                 <>
                   <label htmlFor="auth-full-name">Full Name</label>
                   <div className="auth-input-wrap">
-                    <Mail size={18} aria-hidden="true" />
+                    <User size={18} aria-hidden="true" />
                     <input
                       id="auth-full-name"
                       type="text"
@@ -173,13 +186,15 @@ export function AuthenticationPage() {
                 </button>
               </div>
 
-              <button
-                className="auth-text-button forgot-link"
-                type="button"
-                onClick={() => showProviderUnavailable('Password recovery')}
-              >
-                Forgot password?
-              </button>
+              {!isSignUp && (
+                <button
+                  className="auth-text-button forgot-link"
+                  type="button"
+                  onClick={() => showProviderUnavailable('Password recovery')}
+                >
+                  Forgot password?
+                </button>
+              )}
 
               <button className="auth-submit-button" type="submit" disabled={isSubmitting}>
                 <span>{isSubmitting ? 'Please wait…' : isSignUp ? 'Sign Up' : 'Sign In'}</span>
@@ -223,6 +238,7 @@ export function AuthenticationPage() {
           </div>
         </div>
       </section>
+      <HowItWorksModal isOpen={howItWorksOpen} onClose={closeHowItWorks} />
     </main>
   )
 }

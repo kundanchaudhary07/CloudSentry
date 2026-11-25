@@ -7,6 +7,7 @@ import {
   CircleDollarSign,
   Cloud,
   FileText,
+  HelpCircle,
   Minus,
   ShieldAlert,
   Wrench,
@@ -24,6 +25,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useScanContext } from '../../context/scan-context'
+import { HowItWorksModal } from '../../components/common/HowItWorksModal'
 import { CloudSentryLogo } from '../../components/ui/CloudSentryLogo'
 import { EmptyState, ErrorState, LoadingState, SeverityPill } from '../../components/ui/Feedback'
 import { GradientHeroBanner } from '../../components/ui/GradientHeroBanner'
@@ -42,6 +44,8 @@ export function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardRead | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false)
+  const closeHowItWorks = useCallback(() => setHowItWorksOpen(false), [])
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -127,10 +131,21 @@ export function DashboardPage() {
       <header className="dashboard-brand-header">
         <CloudSentryLogo />
         <div className="dashboard-header-actions">
-          <Link className="dashboard-aws-settings-button" to="/settings">Open AWS Settings →</Link>
+          <div className="dashboard-header-button-row">
+            <Link className="dashboard-aws-settings-button" to="/settings">Open AWS Settings →</Link>
+            <button
+              className="how-it-works-trigger"
+              type="button"
+              onClick={() => setHowItWorksOpen(true)}
+            >
+              <HelpCircle size={15} aria-hidden="true" />
+              How It Works
+            </button>
+          </div>
           <p>Read-only visibility across your AWS environment.</p>
         </div>
       </header>
+      <HowItWorksModal isOpen={howItWorksOpen} onClose={closeHowItWorks} />
 
       {scansError && <ErrorState message={scansError} />}
       {error && <ErrorState message={error} onRetry={refreshDashboard} />}
