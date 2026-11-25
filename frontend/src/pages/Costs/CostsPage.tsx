@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import type { YAxisTickContentProps } from 'recharts'
 import { FindingDrawer } from '../../components/ui/FindingDrawer'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import {
@@ -78,6 +79,10 @@ export function CostsPage() {
   const spendAvailable = Boolean(costExplorer?.cost_explorer_available)
   const trendAvailable = spendAvailable && costExplorer?.trend_percent_change !== null
   const breakdown = costExplorer?.service_breakdown ?? []
+  const chartBreakdown = breakdown.map((service) => ({
+    ...service,
+    amount: clampNearZero(service.amount),
+  }))
 
   function applyUpdate(updated: FindingDetailRead) {
     setReport((current) => current
@@ -113,7 +118,7 @@ export function CostsPage() {
               </div>
               <strong className={`cost-summary-value ${spendAvailable ? 'kpi-number' : 'kpi-status-text'}`}>
                 {spendAvailable && costExplorer
-                  ? formatAmount(costExplorer.current_period_total, costExplorer.currency)
+                  ? formatCostAmount(costExplorer.current_period_total, costExplorer.currency)
                   : 'Unavailable'}
               </strong>
               <span className="muted-copy">
@@ -132,7 +137,7 @@ export function CostsPage() {
               </div>
               <strong className={`cost-summary-value ${spendAvailable ? 'kpi-number' : 'kpi-status-text'}`}>
                 {spendAvailable && costExplorer
-                  ? formatAmount(costExplorer.prior_period_total, costExplorer.currency)
+                  ? formatCostAmount(costExplorer.prior_period_total, costExplorer.currency)
                   : 'Unavailable'}
               </strong>
               <span className="muted-copy">
@@ -182,14 +187,27 @@ export function CostsPage() {
               {!costExplorer?.cost_explorer_available || breakdown.length === 0 ? (
                 <EmptyState title="No service breakdown available" description="Service costs are shown only when Cost Explorer returns them." />
               ) : (
-                <div className="service-chart">
+                <div className="service-chart" style={{ height: Math.max(260, chartBreakdown.length * 42 + 46) }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={breakdown} layout="vertical" margin={{ top: 8, right: 20, bottom: 8, left: 18 }}>
+                    <BarChart data={chartBreakdown} layout="vertical" margin={{ top: 8, right: 20, bottom: 8, left: 18 }}>
                       <CartesianGrid stroke="var(--cs-line)" strokeDasharray="3 4" horizontal={false} />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'var(--cs-muted)', fontSize: 'var(--text-caption)' }} />
-                      <YAxis type="category" dataKey="service" width={130} axisLine={false} tickLine={false} tick={{ fill: 'var(--cs-ink)', fontSize: 'var(--text-caption)' }} />
-                      <Tooltip formatter={(value) => [formatAmount(String(value), costExplorer.currency), 'Unblended cost']} />
-                      <Bar dataKey={(entry) => Number(entry.amount)} fill="var(--cs-blue)" radius={[0, 3, 3, 0]} maxBarSize={24} />
+                      <XAxis
+                        type="number"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: 'var(--cs-muted)', fontSize: 'var(--text-caption)' }}
+                        tickFormatter={(value: number) => formatCostAmount(value, costExplorer.currency)}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="service"
+                        width={230}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={ServiceAxisTick}
+                      />
+                      <Tooltip formatter={(value) => [formatCostAmount(String(value), costExplorer.currency), 'Unblended cost']} />
+                      <Bar dataKey="amount" fill="var(--cs-blue)" radius={[0, 3, 3, 0]} maxBarSize={24} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -199,7 +217,7 @@ export function CostsPage() {
                   {breakdown.map((service) => (
                     <div key={`${service.service}-${service.unit}`}>
                       <span>{service.service}</span>
-                      <strong>{formatAmount(service.amount, service.unit)}</strong>
+                      <strong>{formatCostAmount(service.amount, service.unit)}</strong>
                     </div>
                   ))}
                 </div>
@@ -268,5 +286,39 @@ export function CostsPage() {
       )}
       {selected && <FindingDrawer finding={selected} onClose={() => setSelected(null)} onUpdated={applyUpdate} />}
     </div>
+  )
+}
+
+function clampNearZero(value: string | number): number {
+  const amount = Number(value)
+  return Math.abs(amount) < 0.005 ? 0 : amount
+}
+
+function formatCostAmount(value: string | number | null | undefined, currency: string | null): string {
+  if (value === null || value === undefined) return formatAmount(value, currency)
+  return formatAmount(String(clampNearZero(value)), currency)
+}
+
+function ServiceAxisTick({ x, y, payload }: YAxisTickContentProps) {
+  const serviceName = String(payload.value ?? '')
+  const label = serviceName.length > 30 ? `${serviceName.slice(0, 29).trimEnd()}…` : serviceName
+
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <title>{serviceName}</title>
+      <text
+        x={0}
+        y={0}
+        dx={-5}
+        dy={4}
+        textAnchor="end"
+        fill="var(--cs-ink)"
+        fontSize={12}
+        style={{ whiteSpace: 'nowrap' }}
+        aria-label={serviceName}
+      >
+        {label}
+      </text>
+    </g>
   )
 }
