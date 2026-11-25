@@ -25,6 +25,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useScanContext } from '../../context/scan-context'
+import { useAuth } from '../../context/auth-context'
 import { HowItWorksModal } from '../../components/common/HowItWorksModal'
 import { CloudSentryLogo } from '../../components/ui/CloudSentryLogo'
 import { EmptyState, ErrorState, LoadingState, SeverityPill } from '../../components/ui/Feedback'
@@ -41,42 +42,67 @@ const severityOrder: Array<keyof SeverityCounts> = ['critical', 'high', 'medium'
 
 export function DashboardPage() {
   const { scans, loading: scansLoading, error: scansError } = useScanContext()
-  const [dashboard, setDashboard] = useState<DashboardRead | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { isAuthReady, sessionVersion, token } = useAuth()
+  const [dashboardState, setDashboardState] = useState<{
+    authKey: string
+    dashboard: DashboardRead | null
+    error: string | null
+    loading: boolean
+  } | null>(null)
   const [howItWorksOpen, setHowItWorksOpen] = useState(false)
   const closeHowItWorks = useCallback(() => setHowItWorksOpen(false), [])
+  const authKey = `${sessionVersion}:${token ?? ''}`
+  const currentDashboardState = isAuthReady && token && dashboardState?.authKey === authKey
+    ? dashboardState
+    : null
+  const dashboard = currentDashboardState?.dashboard ?? null
+  const error = currentDashboardState?.error ?? null
+  const loading = currentDashboardState?.loading ?? true
 
   const loadDashboard = useCallback(async () => {
+    if (!isAuthReady || !token) return
+    setDashboardState((current) => ({
+      authKey,
+      dashboard: current?.authKey === authKey ? current.dashboard : null,
+      error: null,
+      loading: true,
+    }))
     try {
-      setDashboard(await getDashboard())
-      setError(null)
+      const result = await getDashboard()
+      setDashboardState({ authKey, dashboard: result, error: null, loading: false })
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError))
-    } finally {
-      setLoading(false)
+      setDashboardState({
+        authKey,
+        dashboard: null,
+        error: getApiErrorMessage(requestError),
+        loading: false,
+      })
     }
-  }, [])
+  }, [authKey, isAuthReady, token])
 
   useEffect(() => {
+    if (!isAuthReady || !token) return
     let active = true
     getDashboard()
       .then((result) => {
         if (active) {
-          setDashboard(result)
-          setError(null)
+          setDashboardState({ authKey, dashboard: result, error: null, loading: false })
         }
       })
       .catch((requestError: unknown) => {
-        if (active) setError(getApiErrorMessage(requestError))
-      })
-      .finally(() => {
-        if (active) setLoading(false)
+        if (active) {
+          setDashboardState({
+            authKey,
+            dashboard: null,
+            error: getApiErrorMessage(requestError),
+            loading: false,
+          })
+        }
       })
     return () => {
       active = false
     }
-  }, [])
+  }, [authKey, isAuthReady, token])
 
   const latestCompleted = scans.find((scan) => scan.status === 'COMPLETED')
   const severityCounts = latestCompleted?.severity_counts
@@ -122,9 +148,9 @@ export function DashboardPage() {
       : { type: 'link', label: 'View Latest Scan Report →', to: '/scans' }
 
   const refreshDashboard = useCallback(() => {
-    setLoading(true)
+    if (!isAuthReady || !token) return
     void loadDashboard()
-  }, [loadDashboard])
+  }, [isAuthReady, loadDashboard, token])
 
   return (
     <div className="dashboard-page">

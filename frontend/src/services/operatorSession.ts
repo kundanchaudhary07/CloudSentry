@@ -1,29 +1,53 @@
 const SESSION_KEY = 'cloudsentry.operator-session'
-const TOKEN_KEY = 'cloudsentry.access-token'
+const TOKEN_KEY = 'cloudsentry_access_token'
+const LEGACY_TOKEN_KEY = 'cloudsentry.access-token'
 const SESSION_CHANGE_EVENT = 'cloudsentry:operator-session-change'
+let inMemoryAccessToken: string | null = null
 
 export function readAccessToken(): string | null {
   const localToken = window.localStorage.getItem(TOKEN_KEY)
-  if (localToken) return localToken
+  if (localToken) {
+    inMemoryAccessToken = localToken
+    return localToken
+  }
 
-  const legacyToken = window.sessionStorage.getItem(TOKEN_KEY)
+  const legacyToken = window.localStorage.getItem(LEGACY_TOKEN_KEY)
+    ?? window.sessionStorage.getItem(TOKEN_KEY)
+    ?? window.sessionStorage.getItem(LEGACY_TOKEN_KEY)
   if (legacyToken) {
-    window.localStorage.setItem(TOKEN_KEY, legacyToken)
+    persistAccessToken(legacyToken)
+    return legacyToken
   }
   window.sessionStorage.removeItem(TOKEN_KEY)
-  return legacyToken
+  window.sessionStorage.removeItem(LEGACY_TOKEN_KEY)
+  return inMemoryAccessToken
+}
+
+export function getRequestAccessToken(): string | null {
+  const persistedToken = window.localStorage.getItem(TOKEN_KEY)
+  if (persistedToken) {
+    inMemoryAccessToken = persistedToken
+    return persistedToken
+  }
+  return inMemoryAccessToken ?? readAccessToken()
 }
 
 export function persistAccessToken(token: string) {
+  inMemoryAccessToken = token
   window.localStorage.setItem(TOKEN_KEY, token)
   window.sessionStorage.removeItem(TOKEN_KEY)
+  window.localStorage.removeItem(LEGACY_TOKEN_KEY)
+  window.sessionStorage.removeItem(LEGACY_TOKEN_KEY)
 }
 
 export function clearStoredCredentials() {
   window.localStorage.removeItem(TOKEN_KEY)
+  window.localStorage.removeItem(LEGACY_TOKEN_KEY)
   window.localStorage.removeItem(SESSION_KEY)
   window.sessionStorage.removeItem(TOKEN_KEY)
+  window.sessionStorage.removeItem(LEGACY_TOKEN_KEY)
   window.sessionStorage.removeItem(SESSION_KEY)
+  inMemoryAccessToken = null
   window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
 }
 

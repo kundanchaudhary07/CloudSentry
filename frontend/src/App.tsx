@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
+import { AuthProvider } from './context/AuthContext'
+import { useAuth } from './context/auth-context'
 import { ScanProvider } from './context/ScanProvider'
 import './App.css'
 import { readAccessToken } from './services/operatorSession'
@@ -16,32 +18,37 @@ const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage').then((modul
 const AuthenticationPage = lazy(() => import('./pages/Authentication/AuthenticationPage').then((module) => ({ default: module.AuthenticationPage })))
 
 function ProtectedRoute() {
-  const token = readAccessToken()
-  return token ? <Outlet /> : <Navigate to="/login" replace />
+  const { isAuthReady, token } = useAuth()
+  if (!isAuthReady) {
+    return <div className="route-loading" role="status">Loading CloudSentry…</div>
+  }
+  return token || readAccessToken() ? <Outlet /> : <Navigate to="/login" replace />
 }
 
 export default function App() {
   return (
-    <ScanProvider>
-      <Suspense fallback={<div className="route-loading" role="status">Loading CloudSentry…</div>}>
-        <Routes>
-          <Route path="/login" element={<AuthenticationPage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppShell />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/findings" element={<FindingsPage />} />
-            <Route path="/costs" element={<CostsPage />} />
-            <Route path="/remediation" element={<RemediationPage />} />
-            <Route path="/scans" element={<ScansPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    <AuthProvider>
+      <ScanProvider>
+        <Suspense fallback={<div className="route-loading" role="status">Loading CloudSentry…</div>}>
+          <Routes>
+            <Route path="/login" element={<AuthenticationPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppShell />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/inventory" element={<InventoryPage />} />
+                <Route path="/findings" element={<FindingsPage />} />
+                <Route path="/costs" element={<CostsPage />} />
+                <Route path="/remediation" element={<RemediationPage />} />
+                <Route path="/scans" element={<ScansPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
-      </Suspense>
-    </ScanProvider>
+          </Routes>
+        </Suspense>
+      </ScanProvider>
+    </AuthProvider>
   )
 }

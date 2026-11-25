@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { clearStoredCredentials, readAccessToken } from './operatorSession'
+import { clearStoredCredentials, getRequestAccessToken } from './operatorSession'
 import type {
   CostResponse,
   DashboardRead,
@@ -20,7 +20,7 @@ export const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = readAccessToken()
+  const token = getRequestAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })

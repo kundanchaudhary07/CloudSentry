@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/auth-context'
 import { AwsConnectionContext } from '../../context/aws-connection-context'
 import { useScanContext } from '../../context/scan-context'
 import {
@@ -72,8 +73,15 @@ function readStoredNotificationIds(userId: string): string[] {
 export function AppShell() {
   const [search, setSearch] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [dashboard, setDashboard] = useState<DashboardRead | null>(null)
-  const [dashboardError, setDashboardError] = useState<string | null>(null)
+  const [dashboardRequest, setDashboardRequest] = useState<{
+    authKey: string
+    data: DashboardRead
+    error: null
+  } | {
+    authKey: string
+    data: null
+    error: string
+  } | null>(null)
   const [operator, setOperator] = useState(readOperatorSession)
   const [notificationUserId, setNotificationUserId] = useState(
     () => readOperatorSession()?.userId ?? null,
@@ -99,30 +107,43 @@ export function AppShell() {
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const { isAuthReady, sessionVersion, token } = useAuth()
   const { apiConnection, scans } = useScanContext()
+  const authKey = `${sessionVersion}:${token ?? ''}`
+  const currentDashboardRequest = isAuthReady && token && dashboardRequest?.authKey === authKey
+    ? dashboardRequest
+    : null
+  const dashboard = currentDashboardRequest?.data ?? null
+  const dashboardError = currentDashboardRequest?.error ?? null
   const settings = readScanSettings()
   const latestCompleted = scans.find((scan) => scan.status === 'COMPLETED')
   const activeResourceType = new URLSearchParams(location.search).get('type')
 
   useEffect(() => {
+    if (!isAuthReady || !token) return
     let active = true
     getDashboard()
       .then((result) => {
         if (active) {
-          setDashboard(result)
-          setDashboardError(null)
+          setDashboardRequest({ authKey, data: result, error: null })
         }
       })
       .catch((requestError: unknown) => {
-        if (active) setDashboardError(getApiErrorMessage(requestError))
+        if (active) {
+          setDashboardRequest({
+            authKey,
+            data: null,
+            error: getApiErrorMessage(requestError),
+          })
+        }
       })
     return () => {
       active = false
     }
-  }, [scans])
+  }, [authKey, isAuthReady, scans, token])
 
   useEffect(() => {
-    if (notificationUserId) return
+    if (!isAuthReady || !token || notificationUserId) return
     let active = true
     getCurrentUser()
       .then((user) => {
@@ -137,7 +158,7 @@ export function AppShell() {
     return () => {
       active = false
     }
-  }, [notificationUserId])
+  }, [isAuthReady, notificationUserId, token])
 
   useEffect(() => {
     if (
@@ -155,7 +176,7 @@ export function AppShell() {
 
   useEffect(() => {
     const scanId = latestCompleted?.id
-    if (!scanId) return
+    if (!isAuthReady || !token || !scanId) return
     let active = true
     getFindings({ scan_id: scanId, status: 'OPEN' })
       .then((findings) => {
@@ -175,7 +196,7 @@ export function AppShell() {
     return () => {
       active = false
     }
-  }, [latestCompleted?.id])
+  }, [isAuthReady, latestCompleted?.id, token])
 
   useEffect(() => {
     function closeNavigationOnHistoryChange() {
@@ -192,6 +213,7 @@ export function AppShell() {
   }), [])
 
   useEffect(() => {
+    if (!isAuthReady || !token) return
     let active = true
     let hasStatusChange = false
     function updateAwsStatus(connected: boolean) {
@@ -221,7 +243,7 @@ export function AppShell() {
       active = false
       window.removeEventListener(AWS_CONNECTION_STATUS_EVENT, handleAwsStatusChange)
     }
-  }, [])
+  }, [isAuthReady, token])
 
   useEffect(() => {
     function handleShortcut(event: globalThis.KeyboardEvent) {
