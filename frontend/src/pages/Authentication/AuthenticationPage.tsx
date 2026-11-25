@@ -156,7 +156,7 @@ export function AuthenticationPage() {
                 <input
                   id="auth-username"
                   type="text"
-                  placeholder="you@company.com"
+                  placeholder="you@gmail.com"
                   autoComplete="username"
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
