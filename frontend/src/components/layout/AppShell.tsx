@@ -39,6 +39,7 @@ import { readScanSettings } from '../../services/scanSettings'
 import type { DashboardRead } from '../../types/api'
 import { CloudSentryLogo } from '../ui/CloudSentryLogo'
 import { ScanTriggerButton } from '../ui/ScanTriggerButton'
+import { ProfileModal } from '../common/ProfileModal'
 
 const navigation = [
   { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -99,8 +100,10 @@ export function AppShell() {
   } | null>(null)
   const [notificationError, setNotificationError] = useState<string | null>(null)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [awsConnectionPromptOpen, setAwsConnectionPromptOpen] = useState(false)
   const [awsConnected, setAwsConnected] = useState<boolean | null>(null)
+  const [awsDefaultRegion, setAwsDefaultRegion] = useState('us-east-1')
   const [awsConnectionRevision, setAwsConnectionRevision] = useState(0)
   const [awsConnectionError, setAwsConnectionError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -216,8 +219,9 @@ export function AppShell() {
     if (!isAuthReady || !token) return
     let active = true
     let hasStatusChange = false
-    function updateAwsStatus(connected: boolean) {
+    function updateAwsStatus(connected: boolean, region?: string) {
       setAwsConnected(connected)
+      if (region) setAwsDefaultRegion(region)
       setAwsConnectionError(null)
       setAwsConnectionRevision((revision) => revision + 1)
     }
@@ -225,11 +229,21 @@ export function AppShell() {
       if (event instanceof CustomEvent && typeof event.detail === 'boolean') {
         hasStatusChange = true
         updateAwsStatus(event.detail)
+      } else if (
+        event instanceof CustomEvent
+        && typeof event.detail === 'object'
+        && event.detail !== null
+        && typeof event.detail.connected === 'boolean'
+      ) {
+        hasStatusChange = true
+        updateAwsStatus(event.detail.connected, event.detail.region)
       }
     }
     getAwsCredentials()
       .then((result) => {
-        if (active && !hasStatusChange) updateAwsStatus(result.has_aws_credentials)
+        if (active && !hasStatusChange) {
+          updateAwsStatus(result.has_aws_credentials, result.aws_default_region)
+        }
       })
       .catch((requestError: unknown) => {
         if (active && !hasStatusChange) {
@@ -298,7 +312,7 @@ export function AppShell() {
 
   async function openProfile() {
     setProfileMenuOpen(false)
-    navigate('/profile')
+    setProfileModalOpen(true)
   }
 
   function logout() {
@@ -471,50 +485,52 @@ export function AppShell() {
             <kbd>Ctrl K</kbd>
           </form>
 
-          <div
-            className={`api-indicator ${apiConnection}${apiConnection === 'connected' && awsConnected === false ? ' aws-disconnected' : ''}${apiConnection === 'connected' && awsConnectionError ? ' aws-status-unavailable' : ''}`}
-            role="status"
-            title={awsConnectionError ?? (awsConnected === false ? 'API connected · AWS not connected' : dashboardError ?? undefined)}
-          >
-            <span className="status-dot" />
-            <span>
-              {apiConnection === 'checking'
-                ? 'Connecting'
-                : apiConnection === 'connected'
-                  ? awsConnected === false
-                    ? 'Not connected'
-                    : awsConnectionError
-                      ? 'AWS status unavailable'
-                      : 'Connected'
-                  : 'API unavailable'}
-            </span>
+          <div className="app-header-controls">
+            <div
+              className={`api-indicator ${apiConnection}${apiConnection === 'connected' && awsConnected === false ? ' aws-disconnected' : ''}${apiConnection === 'connected' && awsConnectionError ? ' aws-status-unavailable' : ''}`}
+              role="status"
+              title={awsConnectionError ?? (awsConnected === false ? 'API connected · AWS not connected' : dashboardError ?? undefined)}
+            >
+              <span className="status-dot" />
+              <span>
+                {apiConnection === 'checking'
+                  ? 'Connecting'
+                  : apiConnection === 'connected'
+                    ? awsConnected === false
+                      ? 'Not connected'
+                      : awsConnectionError
+                        ? 'AWS status unavailable'
+                        : 'Connected'
+                    : 'API unavailable'}
+              </span>
+            </div>
+            <ScanTriggerButton settings={settings} showError={false} />
+            <div className="environment-pill" title="Region from the latest completed scan">
+              <span className="aws-mark" aria-hidden="true">aws</span>
+              <span>{latestCompleted?.regions[0] ?? awsDefaultRegion}</span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </div>
+            <button
+              className="notification-link"
+              type="button"
+              aria-label={notificationError ? 'Finding count unavailable' : `${unreadCount} unread high or critical findings`}
+              title={notificationError ?? `${unreadCount} unread high or critical findings`}
+              onClick={() => {
+                const nextReadIds = [...new Set([...readNotificationIds, ...notificationIds])]
+                if (notificationUserId) {
+                  window.localStorage.setItem(
+                    notificationStorageKey(notificationUserId),
+                    JSON.stringify(nextReadIds),
+                  )
+                }
+                setNotificationReadState({ userId: notificationUserId, ids: nextReadIds })
+                navigate('/findings?status=OPEN')
+              }}
+            >
+              <Bell size={19} aria-hidden="true" />
+              {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
+            </button>
           </div>
-          <ScanTriggerButton settings={settings} showError={false} />
-          <div className="environment-pill" title="Region from the latest completed scan">
-            <span className="aws-mark" aria-hidden="true">aws</span>
-            <span>{latestCompleted?.regions[0] ?? 'AWS region'}</span>
-            <ChevronDown size={14} aria-hidden="true" />
-          </div>
-          <button
-            className="notification-link"
-            type="button"
-            aria-label={notificationError ? 'Finding count unavailable' : `${unreadCount} unread high or critical findings`}
-            title={notificationError ?? `${unreadCount} unread high or critical findings`}
-            onClick={() => {
-              const nextReadIds = [...new Set([...readNotificationIds, ...notificationIds])]
-              if (notificationUserId) {
-                window.localStorage.setItem(
-                  notificationStorageKey(notificationUserId),
-                  JSON.stringify(nextReadIds),
-                )
-              }
-              setNotificationReadState({ userId: notificationUserId, ids: nextReadIds })
-              navigate('/findings?status=OPEN')
-            }}
-          >
-            <Bell size={19} aria-hidden="true" />
-            {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
-          </button>
         </header>
 
         <main className="page-content">
@@ -531,6 +547,7 @@ export function AppShell() {
         >
           <section
             className="aws-connect-prompt"
+            style={{ background: '#ffffff', backgroundColor: '#ffffff', backdropFilter: 'none', WebkitBackdropFilter: 'none', zIndex: 1300 }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="aws-connect-prompt-title"
@@ -564,6 +581,15 @@ export function AppShell() {
             </div>
           </section>
         </div>
+      )}
+      {profileModalOpen && (
+        <ProfileModal
+          onClose={() => setProfileModalOpen(false)}
+          onOpenSettings={() => {
+            setProfileModalOpen(false)
+            navigate('/settings')
+          }}
+        />
       )}
     </AwsConnectionContext.Provider>
   )

@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { HowItWorksModal } from '../../components/common/HowItWorksModal'
 import { CloudSentryLogo } from '../../components/ui/CloudSentryLogo'
 import {
+  API_BASE_URL,
   getApiErrorMessage,
   getCurrentUser,
   getOAuthProviders,
@@ -76,7 +77,7 @@ export function AuthenticationPage() {
     event.preventDefault()
     const operatorIdentifier = identifier.trim()
     if (!operatorIdentifier || !password.trim() || (isSignUp && !fullName.trim())) {
-      setMessage('Enter your email or username and password.')
+      setMessage('Enter your email address and password.')
       return
     }
 
@@ -150,14 +151,14 @@ export function AuthenticationPage() {
                   </div>
                 </>
               )}
-              <label htmlFor="auth-username">Email or Username</label>
+              <label htmlFor="auth-username">Email</label>
               <div className="auth-input-wrap">
                 <Mail size={18} aria-hidden="true" />
                 <input
                   id="auth-username"
-                  type="text"
+                  type="email"
                   placeholder="you@gmail.com"
-                  autoComplete="username"
+                  autoComplete="email"
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   required
@@ -210,7 +211,7 @@ export function AuthenticationPage() {
                 title="Continue with Google"
                 onClick={() => {
                   if (googleConfigured) {
-                    window.location.assign(`${import.meta.env.VITE_API_BASE_URL}/auth/oauth/google/login`)
+                    window.location.assign(`${API_BASE_URL}/auth/oauth/google/login`)
                   } else {
                     showProviderUnavailable('Google. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET')
                   }

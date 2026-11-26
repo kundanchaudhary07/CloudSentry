@@ -14,8 +14,10 @@ import type {
   ScanRead,
 } from '../types/api'
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') || '/api/v1'
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 10_000,
 })
 
@@ -82,7 +84,6 @@ export async function getCurrentUser(): Promise<AuthUser> {
 
 export interface OAuthProviders {
   google: boolean
-  aws: boolean
 }
 
 export async function getOAuthProviders(): Promise<OAuthProviders> {
@@ -104,9 +105,9 @@ export interface AwsConnectionDisconnectRead {
 
 export const AWS_CONNECTION_STATUS_EVENT = 'cloudsentry:aws-connection-status'
 
-export function announceAwsConnectionStatus(connected: boolean) {
-  window.dispatchEvent(new CustomEvent<boolean>(AWS_CONNECTION_STATUS_EVENT, {
-    detail: connected,
+export function announceAwsConnectionStatus(connected: boolean, region?: string) {
+  window.dispatchEvent(new CustomEvent<{ connected: boolean; region?: string }>(AWS_CONNECTION_STATUS_EVENT, {
+    detail: { connected, region },
   }))
 }
 

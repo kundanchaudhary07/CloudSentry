@@ -20,21 +20,14 @@ export function ScanTriggerButton({
   showError?: boolean
 }) {
   const { refresh } = useScanContext()
-  const { awsConnected, connectionRevision, openAwsConnectionPrompt } = useAwsConnection()
+  const { awsConnected, openAwsConnectionPrompt } = useAwsConnection()
   const [loading, setLoading] = useState(false)
-  const [scanState, setScanState] = useState<{
-    revision: number
-    label: string
-    error: string | null
-  } | null>(null)
+  const [scanEnded, setScanEnded] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
   const initialButtonLabel = label ?? 'Run New Scan →'
   const locked = !awsConnected
-  const buttonLabel = scanState?.revision === connectionRevision
-    ? scanState.label
-    : initialButtonLabel
-  const visibleLabel = locked
-    ? initialButtonLabel.replace(/\s*→$/, '')
-    : buttonLabel
+  const buttonLabel = loading ? 'Scanning...' : scanEnded ? 'Scan Ended' : initialButtonLabel
+  const visibleLabel = locked ? initialButtonLabel.replace(/\s*→$/, '') : buttonLabel
 
   async function runScan() {
     if (locked) {
@@ -43,11 +36,8 @@ export function ScanTriggerButton({
     }
     if (loading) return
     setLoading(true)
-    setScanState({
-      revision: connectionRevision,
-      label: 'Scanning...',
-      error: null,
-    })
+    setScanEnded(false)
+    setScanError(null)
     try {
       await onBeforeScan?.()
       const scan = await triggerScan(toScanRequest(settings))
@@ -58,21 +48,13 @@ export function ScanTriggerButton({
         latest = await getScanDetail(scan.id)
         await refresh()
       }
-      setScanState({
-        revision: connectionRevision,
-        label: 'Scan Ended',
-        error: null,
-      })
       onSuccess?.(latest)
     } catch (requestError) {
       await refresh()
-      setScanState({
-        revision: connectionRevision,
-        label: 'Scan Ended',
-        error: getApiErrorMessage(requestError),
-      })
+      setScanError(getApiErrorMessage(requestError))
     } finally {
       setLoading(false)
+      setScanEnded(true)
     }
   }
 
@@ -91,8 +73,8 @@ export function ScanTriggerButton({
           : loading && <span className="button-spinner" aria-hidden="true" />}
         <span>{visibleLabel}</span>
       </button>
-      {showError && scanState?.revision === connectionRevision && scanState.error && (
-        <span className="inline-feedback error" role="alert">{scanState.error}</span>
+      {showError && !locked && scanError && (
+        <span className="inline-feedback error" role="alert">{scanError}</span>
       )}
     </div>
   )

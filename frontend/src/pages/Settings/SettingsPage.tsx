@@ -57,7 +57,7 @@ export function SettingsPage() {
       setAwsRegion('us-east-1')
       setAwsRoleArn('')
       setAwsMessage('AWS connection disconnected')
-      announceAwsConnectionStatus(result.connected)
+      announceAwsConnectionStatus(result.connected, 'us-east-1')
     } catch (requestError) {
       setAwsError(getApiErrorMessage(requestError))
     } finally {
@@ -83,7 +83,7 @@ export function SettingsPage() {
       setAwsSecretKey('')
       setAwsMessage(`Connected · ${result.aws_access_key_id_preview ?? 'AWS key saved'}`)
       setAwsError(null)
-      announceAwsConnectionStatus(result.has_aws_credentials)
+      announceAwsConnectionStatus(result.has_aws_credentials, result.aws_default_region)
     } catch (requestError) {
       setAwsError(getApiErrorMessage(requestError))
       setAwsMessage(null)

@@ -349,6 +349,21 @@ def test_disconnect_aws_credentials_removes_user_connection(
     assert scan.json()["detail"] == "Connect your AWS account in Settings before running a scan."
 
 
+def test_cors_allows_authenticated_aws_disconnect_preflight(
+    api_client: TestClient,
+) -> None:
+    response = api_client.options(
+        "/api/v1/settings/aws-credentials",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "DELETE",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    assert response.status_code == 200
+    assert "DELETE" in response.headers["access-control-allow-methods"]
+
+
 def test_cross_user_scan_inventory_finding_and_settings_are_isolated(
     api_client: TestClient,
 ) -> None:

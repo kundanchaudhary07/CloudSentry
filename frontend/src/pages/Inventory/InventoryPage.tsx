@@ -154,7 +154,7 @@ export function InventoryPage() {
                   value={region}
                   onChange={(event) => setRegion(event.target.value)}
                 >
-                  <option value="">All regions</option>
+                  <option value="">Global</option>
                   {regions.map((value) => (
                     <option value={value} key={value}>
                       {value} ({resources.filter((resource) => resource.region === value).length})

@@ -4730,3 +4730,257 @@ button.operator-label {
     flex-basis: 100%;
   }
 }
+
+.app-floating-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 9999px;
+  z-index: 20;
+}
+
+.app-floating-header .global-search {
+  width: auto;
+  min-width: 180px;
+  max-width: 560px;
+  flex: 1 1 auto;
+}
+
+.app-header-controls {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.app-sidebar {
+  z-index: 50;
+  background: #0f172a;
+}
+
+.app-sidebar .nav-item {
+  border-radius: 15px;
+}
+
+.app-sidebar .nav-item.active {
+  box-shadow: none;
+}
+
+.app-sidebar .nav-item.active::before {
+  inset: 10px auto 10px 6px;
+  width: 3px;
+  border-radius: 999px;
+  background: #72a8ff;
+}
+
+.sidebar-profile-dropup,
+.sidebar-profile-dropup.profile-dropdown {
+  bottom: calc(100% + 8px) !important;
+  left: 0 !important;
+  z-index: 1200;
+  width: 220px;
+  border-color: #e2e8f0;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.aws-connect-prompt-backdrop {
+  z-index: 1300;
+}
+
+.aws-connect-prompt {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.profile-modal {
+  box-sizing: border-box;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.profile-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.profile-modal-heading h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.35rem;
+}
+
+.severity-pill {
+  width: 76px;
+  min-width: 76px;
+  justify-content: flex-start;
+  padding: 0 !important;
+  border: none !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.inventory-region-select {
+  appearance: none;
+  border-radius: 999px;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364758b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+.remediation-table .quick-actions {
+  align-items: stretch;
+}
+
+.page-content .remediation-action-btn {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.service-cost-list > div {
+  min-height: 42px;
+  align-items: center;
+}
+
+.service-cost-list > div > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 1100px) {
+  .inventory-summary-grid,
+  .operator-summary-grid,
+  .remediation-kpi-grid,
+  .costs-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 1099px) {
+  .inventory-summary-grid,
+  .operator-summary-grid,
+  .remediation-kpi-grid,
+  .costs-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .inventory-summary-grid,
+  .operator-summary-grid,
+  .remediation-kpi-grid,
+  .costs-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-floating-header {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    border-radius: 24px;
+  }
+
+  .app-floating-header .global-search {
+    min-width: 180px;
+    max-width: none;
+  }
+
+  .app-header-controls {
+    width: 100%;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-left: 0;
+  }
+
+  .app-header-controls .environment-pill,
+  .app-header-controls .notification-link {
+    display: inline-flex;
+  }
+
+  .app-header-controls .notification-link {
+    width: 42px;
+    flex: 0 0 42px;
+  }
+
+  .app-header-controls .api-indicator {
+    margin-right: auto;
+  }
+
+  .app-header-controls .environment-pill {
+    max-width: 110px;
+    overflow: hidden;
+  }
+
+  .app-header-controls .environment-pill > span:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-profile-dropup,
+  .sidebar-profile-dropup.profile-dropdown {
+    left: 0 !important;
+    right: auto !important;
+    bottom: calc(100% + 8px) !important;
+    width: min(220px, calc(100vw - 24px));
+  }
+}
+
+@media (min-width: 640px) and (max-width: 900px) {
+  .app-floating-header {
+    height: auto;
+    min-height: 70px;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .app-floating-header .global-search {
+    min-width: 180px;
+    max-width: none;
+    flex: 1 1 100%;
+  }
+
+  .app-header-controls {
+    width: 100%;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 400px) {
+  .app-header-controls {
+    gap: 6px;
+  }
+
+  .app-header-controls .api-indicator > span:last-child {
+    display: none;
+  }
+
+  .app-header-controls .environment-pill {
+    max-width: 96px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+}

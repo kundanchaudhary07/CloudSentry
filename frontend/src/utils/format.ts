@@ -10,7 +10,8 @@ export function formatDate(value: string | null | undefined): string {
 
 export function formatAmount(value: string | null | undefined, currency: string | null): string {
   if (value === null || value === undefined || !currency) return 'Unavailable'
-  const amount = Number(value)
+  const parsedAmount = Number(value)
+  const amount = Math.abs(parsedAmount) < 0.005 ? 0 : parsedAmount
   if (!Number.isFinite(amount)) return 'Unavailable'
   try {
     return new Intl.NumberFormat(undefined, {

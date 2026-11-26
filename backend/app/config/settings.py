@@ -1,5 +1,5 @@
 from functools import lru_cache
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,10 +23,15 @@ class Settings(BaseSettings):
     google_client_id: str | None = None
     google_client_secret: str | None = None
     google_redirect_uri: str = "http://localhost:8000/api/v1/auth/oauth/google/callback"
-    aws_cognito_domain: str | None = None
-    aws_cognito_client_id: str | None = None
-    aws_cognito_client_secret: str | None = None
-    aws_cognito_redirect_uri: str = "http://localhost:8000/api/v1/auth/oauth/aws/callback"
+
+    @model_validator(mode="after")
+    def require_production_secret(self) -> "Settings":
+        if self.app_env.strip().lower() in {"prod", "production"} and (
+            self.app_secret_key == "change-me-in-production"
+            or len(self.app_secret_key) < 32
+        ):
+            raise ValueError("APP_SECRET_KEY must be configured with at least 32 characters in production.")
+        return self
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

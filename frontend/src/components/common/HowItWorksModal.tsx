@@ -81,6 +81,7 @@ export function HowItWorksModal({
       <section
         ref={modalRef}
         className="how-it-works-modal"
+        style={{ width: 'min(640px, 92vw)', background: '#ffffff', backgroundColor: '#ffffff', backdropFilter: 'none', WebkitBackdropFilter: 'none', zIndex: 1400 }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="how-it-works-title"
@@ -108,7 +109,7 @@ export function HowItWorksModal({
         <ol className="how-it-works-steps">
           {steps.map((step, index) => (
             <li className="how-it-works-step" key={step.title}>
-              <span className="how-it-works-step-number">{String(index + 1).padStart(2, '0')}</span>
+              <span className="how-it-works-step-number">{String(index + 1).padStart(2, '0')} ·</span>
               <div>
                 <h3>{step.title}</h3>
                 <p>{step.description}</p>

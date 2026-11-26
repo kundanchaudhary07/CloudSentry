@@ -62,8 +62,6 @@ def oauth_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "google-test-id")
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "google-test-secret")
-    monkeypatch.setenv("AWS_COGNITO_DOMAIN", "https://test.auth.us-east-1.amazoncognito.com")
-    monkeypatch.setenv("AWS_COGNITO_CLIENT_ID", "cognito-test-id")
     auth_module.get_settings.cache_clear()
     app.dependency_overrides[get_db] = override_get_db
     MockAsyncClient.claims = {}
@@ -80,10 +78,7 @@ def oauth_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 @pytest.mark.parametrize(
     ("provider", "login_path"),
-    [
-        ("google", "/api/v1/auth/oauth/google/login"),
-        ("aws", "/api/v1/auth/oauth/aws/login"),
-    ],
+    [("google", "/api/v1/auth/oauth/google/login")],
 )
 def test_oauth_login_redirect_contains_valid_state(
     oauth_client,
@@ -150,42 +145,9 @@ def test_google_callback_creates_user_setting_and_mints_jwt(
         assert db.scalar(select(ScanSetting).where(ScanSetting.user_id == user.id)) is not None
 
 
-def test_aws_callback_creates_user_setting_and_mints_jwt(
-    oauth_client,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    oauth_client, test_session = oauth_client
-    MockAsyncClient.claims = {
-        "sub": "aws-sub-456",
-        "email": "aws.user@gmail.com",
-        "name": "AWS User",
-    }
-    monkeypatch.setattr(auth_module.httpx, "AsyncClient", MockAsyncClient)
-
-    login = oauth_client.get(
-        "/api/v1/auth/oauth/aws/login",
-        follow_redirects=False,
-    )
-    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
-    callback = oauth_client.get(
-        "/api/v1/auth/oauth/aws/callback",
-        params={"code": "aws-code", "state": state},
-        follow_redirects=False,
-    )
-
-    assert callback.status_code == 302
-    redirect = urlparse(callback.headers["location"])
-    token = parse_qs(redirect.query)["token"][0]
-    me = oauth_client.get(
-        "/api/v1/auth/me",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert me.status_code == 200
-    assert me.json()["full_name"] == "AWS User"
-
-    with test_session() as db:
-        user = db.scalar(select(User).where(User.email == "aws.user@gmail.com"))
-        assert user is not None
-        assert user.auth_provider == "aws"
-        assert user.provider_sub == "aws-sub-456"
-        assert db.scalar(select(ScanSetting).where(ScanSetting.user_id == user.id)) is not None
+def test_oauth_providers_are_google_only(oauth_client) -> None:
+    oauth_client, _ = oauth_client
+    providers = oauth_client.get("/api/v1/auth/providers")
+    assert providers.status_code == 200
+    assert providers.json() == {"google": True}
+    assert oauth_client.get("/api/v1/auth/oauth/aws/login").status_code == 404

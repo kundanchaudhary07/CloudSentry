@@ -216,7 +216,7 @@ export function CostsPage() {
                 <div className="service-cost-list">
                   {breakdown.map((service) => (
                     <div key={`${service.service}-${service.unit}`}>
-                      <span>{service.service}</span>
+                      <span title={service.service}>{service.service}</span>
                       <strong>{formatCostAmount(service.amount, service.unit)}</strong>
                     </div>
                   ))}

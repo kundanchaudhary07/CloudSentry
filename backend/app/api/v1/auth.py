@@ -202,10 +202,6 @@ def oauth_providers() -> dict[str, bool]:
     settings = get_settings()
     return {
         "google": bool(settings.google_client_id and settings.google_client_secret),
-        "aws": bool(
-            settings.aws_cognito_domain
-            and settings.aws_cognito_client_id
-        ),
     }
 
 
@@ -277,87 +273,6 @@ async def google_callback(
         email=str(email),
         full_name=str(claims.get("name") or claims.get("given_name") or email),
         provider="google",
-        provider_sub=str(provider_sub),
-    )
-    cloudsentry_token = create_access_token(user)
-    return RedirectResponse(
-        url=f"{settings.frontend_url.rstrip('/')}/login?{urlencode({'token': cloudsentry_token})}",
-        status_code=status.HTTP_302_FOUND,
-    )
-
-
-@router.get("/oauth/aws/login")
-def aws_login() -> RedirectResponse:
-    settings = get_settings()
-    if not settings.aws_cognito_domain or not settings.aws_cognito_client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="AWS_COGNITO_DOMAIN and AWS_COGNITO_CLIENT_ID must be set.",
-        )
-    domain = settings.aws_cognito_domain.rstrip("/")
-    params = urlencode({
-        "client_id": settings.aws_cognito_client_id,
-        "redirect_uri": settings.aws_cognito_redirect_uri,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "state": _oauth_state("aws"),
-    })
-    return RedirectResponse(
-        url=f"{domain}/oauth2/authorize?{params}",
-        status_code=status.HTTP_302_FOUND,
-    )
-
-
-@router.get("/oauth/aws/callback")
-async def aws_callback(
-    code: str | None = None,
-    state: str | None = None,
-    error: str | None = None,
-    db: Session = Depends(get_db),
-) -> RedirectResponse:
-    settings = get_settings()
-    if error:
-        return _oauth_error_redirect(error)
-    if not code or not state:
-        return _oauth_error_redirect("Missing AWS Cognito OAuth code or state.")
-    try:
-        _validate_oauth_state(state, "aws")
-        domain = settings.aws_cognito_domain.rstrip("/") if settings.aws_cognito_domain else ""
-        token_data = {
-            "code": code,
-            "client_id": settings.aws_cognito_client_id,
-            "redirect_uri": settings.aws_cognito_redirect_uri,
-            "grant_type": "authorization_code",
-        }
-        if settings.aws_cognito_client_secret:
-            token_data["client_secret"] = settings.aws_cognito_client_secret
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            token_response = await client.post(
-                f"{domain}/oauth2/token",
-                data=token_data,
-            )
-            token_response.raise_for_status()
-            access_token = token_response.json()["access_token"]
-            profile_response = await client.get(
-                f"{domain}/oauth2/userInfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            profile_response.raise_for_status()
-            claims = profile_response.json()
-    except (httpx.HTTPError, KeyError, ValueError):
-        return _oauth_error_redirect("AWS Cognito sign-in failed.")
-    except HTTPException:
-        return _oauth_error_redirect("Invalid or expired AWS Cognito OAuth state.")
-
-    email = claims.get("email")
-    provider_sub = claims.get("sub")
-    if not email or not provider_sub:
-        return _oauth_error_redirect("AWS Cognito did not return an email and subject.")
-    user = _find_or_create_oauth_user(
-        db,
-        email=str(email),
-        full_name=str(claims.get("name") or claims.get("given_name") or email),
-        provider="aws",
         provider_sub=str(provider_sub),
     )
     cloudsentry_token = create_access_token(user)

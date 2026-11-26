@@ -29,7 +29,7 @@ export function ProfilePage() {
     profile?.auth_provider === 'google'
       ? 'Google'
       : profile?.auth_provider === 'aws'
-        ? 'AWS Cognito'
+        ? 'Legacy federated account'
         : 'Local account'
 
   return (
