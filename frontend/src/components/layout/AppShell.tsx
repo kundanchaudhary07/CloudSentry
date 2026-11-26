@@ -424,7 +424,7 @@ export function AppShell() {
             onMouseLeave={closeProfileAfterPointerLeave}
           >
             <button
-              className="sidebar-operator"
+              className="sidebar-operator sidebar-profile-trigger"
               type="button"
               aria-label={operator ? `${operator.displayName}, operator menu` : 'Sign in'}
               aria-haspopup="menu"
@@ -436,7 +436,7 @@ export function AppShell() {
               <span className="operator-avatar" aria-hidden="true">
                 {operator?.initials ?? <UserRound size={16} />}
               </span>
-              <span className="operator-details">
+              <span className="operator-details sidebar-profile-info">
                 <strong>{operator?.displayName ?? 'Not signed in'}</strong>
                 <small>{operator ? 'Cloud Operator' : 'Operator access'}</small>
               </span>

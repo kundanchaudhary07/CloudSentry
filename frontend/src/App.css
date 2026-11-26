@@ -2666,16 +2666,19 @@
   border-top: 0;
 }
 
-.sidebar-operator {
+.sidebar-operator,
+.sidebar-profile-trigger {
   display: flex;
+  width: 100%;
   min-width: 0;
   min-height: 44px;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 0 8px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
   overflow: hidden;
-  border-radius: 13px;
+  border-radius: 14px;
+  box-sizing: border-box;
   color: #f8f6f0;
   text-decoration: none;
   white-space: nowrap;
@@ -2685,14 +2688,18 @@
   background: #263248;
 }
 
-.operator-details {
+.operator-details,
+.sidebar-profile-info {
   display: flex;
   min-width: 0;
   max-width: 0;
   flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
   overflow: hidden;
   opacity: 0;
   transform: translateX(-6px);
+  text-align: left;
   transition: max-width 180ms ease, opacity 130ms ease, transform 180ms ease;
 }
 

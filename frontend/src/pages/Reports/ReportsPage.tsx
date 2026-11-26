@@ -9,6 +9,7 @@ import { domains, getFindingDomain, getResourceDomain } from '../../utils/dataDo
 import type { DomainFilter, DomainId } from '../../utils/dataDomains'
 import { formatDate, formatRegionsSummary } from '../../utils/format'
 import '../../styles/data-grid.css'
+import './reports.css'
 
 export function ReportsPage() {
   const { scans, loading: scansLoading, error: scansError } = useScanContext()
@@ -108,8 +109,8 @@ export function ReportsPage() {
 
       {latestCompleted && !reportLoading && !error && (
         <>
-          <section className="surface-card report-preview-summary report-source-scan-summary" aria-label="Report source scan">
-            <div className="data-grid-title">
+          <section className="surface-card report-preview-summary report-source-scan-summary reports-latest-scan-banner" aria-label="Report source scan">
+            <div className="data-grid-title reports-latest-scan-meta">
               <strong>Latest completed scan</strong>
               <small>
                 {formatDate(latestCompleted.started_at)} · {latestCompleted.resource_count.toLocaleString()} resources ·{' '}
@@ -118,7 +119,7 @@ export function ReportsPage() {
                 </span>
               </small>
             </div>
-            <div className="report-preview-metrics">
+            <div className="report-preview-metrics reports-latest-scan-badges">
               <span>{resources.length.toLocaleString()} resources</span>
               <span>{findings.length.toLocaleString()} findings</span>
               <span>{latestCompleted.posture_score === null ? 'Posture unavailable' : `Posture ${latestCompleted.posture_score}/100`}</span>

@@ -1,0 +1,29 @@
+.reports-latest-scan-banner {
+  width: 100%;
+  height: auto;
+  min-height: unset;
+  padding: 16px 22px;
+  border-radius: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+}
+
+.reports-latest-scan-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reports-latest-scan-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
