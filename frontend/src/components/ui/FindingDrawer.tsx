@@ -5,6 +5,7 @@ import { readOperatorSession } from '../../services/operatorSession'
 import type { FindingDetailRead, FindingRead, FindingStatus } from '../../types/api'
 import { Drawer } from './Drawer'
 import { ErrorState, LoadingState, SeverityPill, StatusPill } from './Feedback'
+import { DrawerMetric, DrawerMetricGrid } from './DrawerElements'
 import { formatDate } from '../../utils/format'
 
 const findingStatuses: FindingStatus[] = ['OPEN', 'ACKNOWLEDGED', 'RESOLVED']
@@ -62,14 +63,14 @@ export function FindingDrawer({
     }
   }, [finding.id])
 
-  async function saveUpdate() {
+  async function persistUpdate(nextStatus: FindingStatus, nextNotes: string) {
     setSaving(true)
     setSaved(false)
     setError(null)
     try {
       const updated = await updateFinding(finding.id, {
-        status,
-        notes,
+        status: nextStatus,
+        notes: nextNotes,
         actor: readOperatorSession()?.displayName,
       })
       setDetail(updated)
@@ -82,6 +83,10 @@ export function FindingDrawer({
     } finally {
       setSaving(false)
     }
+  }
+
+  async function saveUpdate() {
+    await persistUpdate(status, notes)
   }
 
   const current = detail ?? finding
@@ -102,39 +107,76 @@ export function FindingDrawer({
 
   return (
     <Drawer
-      title={current.title}
-      subtitle={`${current.rule_id} · ${current.resource_id}`}
+      title="Finding details"
+      copyableId={current.id}
+      status={current.status}
+      headerBadge={<SeverityPill severity={current.severity} />}
       icon={<ShieldAlert size={20} />}
       tone="coral"
       onClose={onClose}
       solidDetail
+      footer={(
+        <div className={`drawer-footer-actions${current.status !== 'OPEN' ? ' single-action' : ''}`}>
+          {current.status !== 'ACKNOWLEDGED' && current.status !== 'RESOLVED' && (
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => void persistUpdate('ACKNOWLEDGED', notes)}
+              disabled={saving || loading}
+            >
+              Acknowledge Finding
+            </button>
+          )}
+          {current.status !== 'RESOLVED' ? (
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => void persistUpdate('RESOLVED', notes)}
+              disabled={saving || loading}
+            >
+              Mark Resolved
+            </button>
+          ) : (
+            <button className="button button-secondary" type="button" onClick={onClose}>Close</button>
+          )}
+        </div>
+      )}
     >
       {loading && <LoadingState label="Loading finding details…" />}
       {error && <ErrorState message={error} onRetry={() => void loadDetail()} />}
       <div className="finding-detail-stack">
-        <div className="finding-detail-meta">
-          <SeverityPill severity={current.severity} />
-          <StatusPill status={current.status} />
-          <span className="meta-text">{current.category}</span>
-          <span className="meta-text">{current.region}</span>
-        </div>
+        <DrawerMetricGrid>
+          <DrawerMetric label="Severity" value={<span className={`drawer-severity-metric severity-${current.severity.toLowerCase()}`}>{current.severity}</span>} />
+          <DrawerMetric label="Status" value={<StatusPill status={current.status} />} />
+          <DrawerMetric label="Rule ID" value={<code>{current.rule_id}</code>} />
+          <DrawerMetric label="AWS Region" value={current.region || 'global'} />
+        </DrawerMetricGrid>
 
-        <section className="inspector-section">
+        <section className="drawer-panel-section">
+          <div className="drawer-section-heading"><h3>{current.title}</h3></div>
+          <div className="finding-detail-meta">
+            <span className="meta-text">{current.category}</span>
+            <span className="meta-text">{current.resource_type}</span>
+            <code className="drawer-resource-id">{current.resource_id}</code>
+          </div>
+        </section>
+
+        <section className="drawer-panel-section">
           <h3>Rule description</h3>
           <p>{current.description}</p>
         </section>
-        <section className="inspector-section">
+        <section className="drawer-panel-section">
           <h3>Recommended action</h3>
           <p>{current.recommendation}</p>
         </section>
         {Object.keys(current.details).length > 0 && (
-          <section className="inspector-section">
+          <section className="drawer-panel-section">
             <h3>Finding details</h3>
             <pre className="json-view">{JSON.stringify(current.details, null, 2)}</pre>
           </section>
         )}
 
-        <section className="inspector-section update-section">
+        <section className="drawer-panel-section update-section">
           <h3>Operator update</h3>
           <label className="field-label" htmlFor="finding-status">Status</label>
           <select
@@ -169,7 +211,7 @@ export function FindingDrawer({
           <p className="muted-copy">Updates are recorded in PostgreSQL only. No AWS resources are changed.</p>
         </section>
 
-        <section className="inspector-section">
+        <section className="drawer-panel-section">
           <h3>Remediation history</h3>
           {!detail || detail.remediation_history.length === 0 ? (
             <p className="muted-copy">No operator updates have been recorded.</p>

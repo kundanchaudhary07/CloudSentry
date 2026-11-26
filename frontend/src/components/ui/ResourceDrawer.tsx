@@ -4,12 +4,16 @@ import { getApiErrorMessage, getInventory } from '../../services/api'
 import type { ResourceRead } from '../../types/api'
 import { Drawer } from './Drawer'
 import { ErrorState, LoadingState } from './Feedback'
+import { DrawerMetric, DrawerMetricGrid } from './DrawerElements'
+import { formatDate } from '../../utils/format'
 
 export function ResourceDrawer({
   resource,
+  discoveredAt,
   onClose,
 }: {
   resource: ResourceRead
+  discoveredAt: string | null
   onClose: () => void
 }) {
   const [detail, setDetail] = useState<ResourceRead | null>(resource)
@@ -19,6 +23,8 @@ export function ResourceDrawer({
   const isSecurityGroup = resource.resource_type === 'SecurityGroup'
   const drawerIcon = isStorage ? <Database size={20} /> : isSecurityGroup ? <ShieldCheck size={20} /> : <Boxes size={20} />
   const drawerTone: 'mint' | 'coral' | 'blue' = isStorage ? 'mint' : isSecurityGroup ? 'coral' : 'blue'
+  const configuration = detail?.configuration ?? resource.configuration
+  const accountOrArn = getConfigurationIdentity(configuration, detail?.resource_id ?? resource.resource_id)
 
   useEffect(() => {
     let active = true
@@ -39,45 +45,62 @@ export function ResourceDrawer({
 
   return (
     <Drawer
-      title={detail?.name || resource.resource_id}
-      subtitle={`${resource.resource_type} · ${resource.region}`}
+      title="Resource details"
+      subtitle={detail?.name || resource.name || resource.resource_type}
+      copyableId={detail?.resource_id ?? resource.resource_id}
+      status={detail?.state ?? resource.state}
       icon={drawerIcon}
       tone={drawerTone}
       onClose={onClose}
       solidDetail
+      footer={<button className="button button-secondary" type="button" onClick={onClose}>Close</button>}
     >
       {loading && <LoadingState label="Refreshing resource details…" />}
       {error && <ErrorState message={error} />}
       {detail && (
         <div className="inspector-stack">
-          <section className="inspector-section">
-            <h3>Resource summary</h3>
-            <dl className="definition-list">
-              <div><dt>Resource ID</dt><dd>{detail.resource_id}</dd></div>
-              <div><dt>Type</dt><dd>{detail.resource_type}</dd></div>
-              <div><dt>Region</dt><dd>{detail.region}</dd></div>
-              <div><dt>State</dt><dd>{detail.state}</dd></div>
-              <div><dt>Name</dt><dd>{detail.name || '—'}</dd></div>
-            </dl>
+          <DrawerMetricGrid>
+            <DrawerMetric label="Resource type" value={detail.resource_type} />
+            <DrawerMetric label="AWS Region" value={detail.region || 'global'} />
+            <DrawerMetric label="Account / ARN" value={accountOrArn} />
+            <DrawerMetric label="Discovery time" value={formatDate(discoveredAt)} />
+          </DrawerMetricGrid>
+          <section className="drawer-panel-section">
+            <h3>Resource state</h3>
+            <div className="drawer-resource-summary">
+              <span>Name</span><strong>{detail.name || '—'}</strong>
+              <span>Current state</span><strong>{detail.state || '—'}</strong>
+            </div>
           </section>
-          <section className="inspector-section">
+          <section className="drawer-panel-section">
             <h3>Tags</h3>
             {Object.keys(detail.tags).length === 0 ? (
               <p className="muted-copy">No tags were reported for this resource.</p>
             ) : (
-              <dl className="definition-list">
+              <div className="drawer-resource-tags">
                 {Object.entries(detail.tags).map(([key, value]) => (
-                  <div key={key}><dt>{key}</dt><dd>{value || '—'}</dd></div>
+                  <span key={key}><strong>{key}</strong>{value || '—'}</span>
                 ))}
-              </dl>
+              </div>
             )}
           </section>
-          <section className="inspector-section">
+          <section className="drawer-panel-section">
             <h3>Normalized configuration</h3>
-            <pre className="json-view">{JSON.stringify(detail.configuration, null, 2)}</pre>
+            <details className="drawer-configuration-details">
+              <summary>View normalized AWS configuration</summary>
+              <pre className="json-view">{JSON.stringify(detail.configuration, null, 2)}</pre>
+            </details>
           </section>
         </div>
       )}
     </Drawer>
   )
+}
+
+function getConfigurationIdentity(configuration: Record<string, unknown>, resourceId: string): string {
+  const arn = configuration.arn
+  if (typeof arn === 'string' && arn) return arn
+  if (resourceId.startsWith('arn:')) return resourceId
+  const account = configuration.account_id ?? configuration.account
+  return typeof account === 'string' && account ? account : 'Not available'
 }

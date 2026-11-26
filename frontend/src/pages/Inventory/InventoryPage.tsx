@@ -270,7 +270,13 @@ export function InventoryPage() {
         </>
       )}
 
-      {selected && <ResourceDrawer resource={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ResourceDrawer
+          resource={selected}
+          discoveredAt={scans.find((scan) => scan.id === selected.scan_id)?.started_at ?? null}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }

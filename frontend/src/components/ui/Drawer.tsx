@@ -1,22 +1,33 @@
 import { X } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { PastelIconBadge, type IconTone } from './PastelIconBadge'
+import { StatusPill } from './Feedback'
+import { CopyableIdChip } from './DrawerElements'
+import '../../styles/drawer-panels.css'
 
 export function Drawer({
   title,
   subtitle,
+  copyableId,
+  status,
+  headerBadge,
   icon,
   tone = 'blue',
   onClose,
   children,
+  footer,
   solidDetail = false,
 }: {
   title: string
   subtitle?: string
+  copyableId?: string
+  status?: string
+  headerBadge?: ReactNode
   icon?: ReactNode
   tone?: IconTone
   onClose: () => void
   children: ReactNode
+  footer?: ReactNode
   solidDetail?: boolean
 }) {
   useEffect(() => {
@@ -29,7 +40,7 @@ export function Drawer({
 
   return (
     <div className="drawer-backdrop" style={solidDetail ? {
-      background: 'rgba(15, 23, 42, 0.35)',
+      background: 'rgba(15, 23, 42, 0.4)',
       zIndex: 1200,
     } : undefined} onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose()
@@ -45,28 +56,35 @@ export function Drawer({
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
           opacity: 1,
-          width: 'min(500px, 92vw)',
-          maxWidth: '500px',
+          width: 'min(520px, 94vw)',
+          maxWidth: '520px',
           zIndex: 1300,
         } : undefined}
       >
         <header className="drawer-header" style={solidDetail ? {
-          background: '#ffffff',
-          backgroundColor: '#ffffff',
+          background: '#f8fafc',
+          backgroundColor: '#f8fafc',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
           opacity: 1,
         } : undefined}>
-          <div className="drawer-title-group">
-            {icon && <PastelIconBadge tone={tone} className="drawer-title-icon">{icon}</PastelIconBadge>}
-            <div className="drawer-title-copy">
-              <h2>{title}</h2>
-              {subtitle && <p>{subtitle}</p>}
+          <div className="drawer-header-main">
+            <div className="drawer-title-group">
+              {icon && <PastelIconBadge tone={tone} className="drawer-title-icon">{icon}</PastelIconBadge>}
+              <div className="drawer-title-copy">
+                <h2>{title}</h2>
+                {subtitle && <p>{subtitle}</p>}
+                {copyableId && <CopyableIdChip value={copyableId} />}
+              </div>
+            </div>
+            <div className="drawer-header-actions">
+              {headerBadge}
+              {status && <StatusPill status={status} />}
+              <button className="icon-button drawer-close-button" type="button" onClick={onClose} aria-label={`Close ${title}`} title={`Close ${title}`}>
+                <X size={18} />
+              </button>
             </div>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label={`Close ${title}`} title={`Close ${title}`}>
-            <X size={18} />
-          </button>
         </header>
         <div className="drawer-content" style={solidDetail ? {
           background: '#ffffff',
@@ -75,6 +93,7 @@ export function Drawer({
           WebkitBackdropFilter: 'none',
           opacity: 1,
         } : undefined}>{children}</div>
+        {footer && <footer className="drawer-footer">{footer}</footer>}
       </aside>
     </div>
   )

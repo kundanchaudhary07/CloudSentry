@@ -68,7 +68,7 @@ export function DomainSection({
   return (
     <section className={`domain-section${className ? ` ${className}` : ''}`} data-domain={domain.id}>
       <button
-        className="domain-section-heading"
+        className="domain-section-heading domain-group-header"
         type="button"
         aria-expanded={!collapsed}
         aria-controls={contentId}

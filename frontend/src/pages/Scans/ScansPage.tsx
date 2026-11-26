@@ -13,7 +13,7 @@ import {
   PageHeader,
   StatusPill,
 } from '../../components/ui/Feedback'
-import { formatDate } from '../../utils/format'
+import { formatDate, formatRegionsSummary } from '../../utils/format'
 import { useScanContext } from '../../context/scan-context'
 import { readScanSettings } from '../../services/scanSettings'
 import type { ScanRead, ScanStatus } from '../../types/api'
@@ -142,7 +142,7 @@ function ScanDataCard({ scan, onOpen }: { scan: ScanRead; onOpen: () => void }) 
   const duration = formatScanDuration(scan.started_at, scan.completed_at)
   return (
     <article
-      className="data-grid-row scan-card-row"
+      className="data-grid-row scan-row-card"
       role="group"
       tabIndex={0}
       aria-label={`Inspect scan from ${formatDate(scan.started_at)}`}
@@ -165,7 +165,13 @@ function ScanDataCard({ scan, onOpen }: { scan: ScanRead; onOpen: () => void }) 
       <div className="scan-card-meta">
         <StatusPill status={scan.status} />
         <span>{scan.resource_count.toLocaleString()} resources</span>
-        <span className="region-label"><MapPin size={13} aria-hidden="true" />{scan.regions.length ? scan.regions.join(', ') : '—'}</span>
+        <span
+          className="region-label scan-region-summary"
+          title={scan.regions.length > 2 ? scan.regions.join(', ') : undefined}
+        >
+          <MapPin size={13} aria-hidden="true" />
+          {formatRegionsSummary(scan.regions)}
+        </span>
         <span className="region-label"><Clock3 size={13} aria-hidden="true" />{duration}</span>
       </div>
       <div className="scan-card-posture">
@@ -201,7 +207,6 @@ function ScanDataCard({ scan, onOpen }: { scan: ScanRead; onOpen: () => void }) 
       >
         Inspect <ArrowRight size={15} aria-hidden="true" />
       </button>
-      <ArrowRight className="data-grid-row-chevron" size={16} aria-hidden="true" />
     </article>
   )
 }

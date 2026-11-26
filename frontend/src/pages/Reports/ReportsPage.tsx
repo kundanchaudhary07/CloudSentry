@@ -7,7 +7,7 @@ import { getApiErrorMessage, getFindings, getInventory } from '../../services/ap
 import type { FindingRead, ResourceRead } from '../../types/api'
 import { domains, getFindingDomain, getResourceDomain } from '../../utils/dataDomains'
 import type { DomainFilter, DomainId } from '../../utils/dataDomains'
-import { formatDate } from '../../utils/format'
+import { formatDate, formatRegionsSummary } from '../../utils/format'
 import '../../styles/data-grid.css'
 
 export function ReportsPage() {
@@ -111,7 +111,12 @@ export function ReportsPage() {
           <section className="surface-card report-preview-summary" aria-label="Report source scan">
             <div className="data-grid-title">
               <strong>Latest completed scan</strong>
-              <small>{formatDate(latestCompleted.started_at)} · {latestCompleted.resource_count.toLocaleString()} resources · {latestCompleted.regions.join(', ') || 'No regions recorded'}</small>
+              <small>
+                {formatDate(latestCompleted.started_at)} · {latestCompleted.resource_count.toLocaleString()} resources ·{' '}
+                <span title={latestCompleted.regions.length > 2 ? latestCompleted.regions.join(', ') : undefined}>
+                  {latestCompleted.regions.length ? formatRegionsSummary(latestCompleted.regions) : 'No regions recorded'}
+                </span>
+              </small>
             </div>
             <div className="report-preview-metrics">
               <span>{resources.length.toLocaleString()} resources</span>

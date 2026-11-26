@@ -35,7 +35,7 @@ import { ScanTriggerButton } from '../../components/ui/ScanTriggerButton'
 import { getApiErrorMessage, getDashboard } from '../../services/api'
 import { readScanSettings } from '../../services/scanSettings'
 import type { DashboardRead, SeverityCounts } from '../../types/api'
-import { formatAmount, formatDate } from '../../utils/format'
+import { formatAmount, formatDate, formatRegionsSummary } from '../../utils/format'
 import './dashboard.css'
 
 const severityOrder: Array<keyof SeverityCounts> = ['critical', 'high', 'medium', 'low']
@@ -108,7 +108,6 @@ export function DashboardPage() {
   const severityCounts = latestCompleted?.severity_counts
   const costExplorer = dashboard?.cost_summary.cost_explorer
   const score = dashboard?.posture_score ?? null
-  const regionCount = latestCompleted?.regions.length ?? 0
   const trend = (dashboard?.recent_scan_trend ?? []).map((point) => ({
     ...point,
     date_label: (() => {
@@ -255,8 +254,15 @@ export function DashboardPage() {
                 <div className="metric-copy">
                   <p className="card-kicker">Total resources</p>
                   <strong className="metric-number kpi-number">{dashboard.total_resources.toLocaleString()}</strong>
-                  <span className="metric-footnote">
-                    {latestCompleted ? `Across ${regionCount} ${regionCount === 1 ? 'region' : 'regions'}` : 'No completed scan'}
+                  <span
+                    className="metric-footnote"
+                    title={latestCompleted && latestCompleted.regions.length > 2 ? latestCompleted.regions.join(', ') : undefined}
+                  >
+                    {!latestCompleted
+                      ? 'No completed scan'
+                      : latestCompleted.regions.length
+                        ? `Across ${formatRegionsSummary(latestCompleted.regions)}`
+                        : 'No regions recorded'}
                   </span>
                 </div>
               </Link>

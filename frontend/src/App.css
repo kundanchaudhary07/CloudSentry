@@ -4458,8 +4458,8 @@ button.operator-label {
 }
 
 .drawer-panel.solid-detail-drawer {
-  width: min(500px, 92vw) !important;
-  max-width: 500px;
+  width: min(520px, 94vw) !important;
+  max-width: 520px;
 }
 
 .inventory-summary-grid,

@@ -8,6 +8,11 @@ export function formatDate(value: string | null | undefined): string {
   return new Intl.DateTimeFormat(undefined, options).format(date)
 }
 
+export function formatRegionsSummary(regions: string[]): string {
+  if (regions.length <= 2) return regions.join(', ') || '—'
+  return `${regions.length} regions (${regions[0]} +${regions.length - 1})`
+}
+
 export function formatAmount(value: string | null | undefined, currency: string | null): string {
   if (value === null || value === undefined || !currency) return 'Unavailable'
   const parsedAmount = Number(value)
