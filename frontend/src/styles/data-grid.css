@@ -517,6 +517,10 @@
   gap: 12px;
 }
 
+.report-source-scan-summary {
+  margin-bottom: 14px;
+}
+
 .report-preview-metrics {
   display: flex;
   flex-wrap: wrap;

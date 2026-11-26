@@ -108,7 +108,7 @@ export function ReportsPage() {
 
       {latestCompleted && !reportLoading && !error && (
         <>
-          <section className="surface-card report-preview-summary" aria-label="Report source scan">
+          <section className="surface-card report-preview-summary report-source-scan-summary" aria-label="Report source scan">
             <div className="data-grid-title">
               <strong>Latest completed scan</strong>
               <small>

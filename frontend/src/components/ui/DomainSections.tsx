@@ -51,7 +51,7 @@ export function DomainSection({
   count,
   children,
   id,
-  defaultCollapsed = false,
+  defaultCollapsed = true,
   className = '',
 }: {
   domain: DomainDefinition
