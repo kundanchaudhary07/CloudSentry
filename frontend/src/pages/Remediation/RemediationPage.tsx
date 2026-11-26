@@ -2,6 +2,8 @@ import { CheckCheck, CircleDot, Search, ShieldAlert, Wrench } from 'lucide-react
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { FindingDrawer } from '../../components/ui/FindingDrawer'
+import { FindingDataCard } from '../../components/ui/FindingDataCard'
+import { DomainSection, DomainSegmentedControl } from '../../components/ui/DomainSections'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import {
   EmptyState,
@@ -9,13 +11,15 @@ import {
   LoadingState,
   NoScansState,
   PageHeader,
-  SeverityPill,
-  StatusPill,
 } from '../../components/ui/Feedback'
 import { useScanContext } from '../../context/scan-context'
 import { getApiErrorMessage, getFindings, updateFinding } from '../../services/api'
 import { readOperatorSession } from '../../services/operatorSession'
+import { formatDate } from '../../utils/format'
+import { getFindingDomain, groupByDomain } from '../../utils/dataDomains'
+import type { DomainFilter, DomainId } from '../../utils/dataDomains'
 import type { FindingDetailRead, FindingRead, FindingStatus } from '../../types/api'
+import '../../styles/data-grid.css'
 
 export function RemediationPage() {
   const { scans, loading: scansLoading, error: scansError } = useScanContext()
@@ -26,6 +30,7 @@ export function RemediationPage() {
   const [updateFeedback, setUpdateFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [queueSearch, setQueueSearch] = useState('')
+  const [domain, setDomain] = useState<DomainFilter>('all')
 
   const loadQueue = useCallback(async () => {
     try {
@@ -66,7 +71,7 @@ export function RemediationPage() {
     }
   }, [scans.length])
 
-  const visibleFindings = useMemo(() => {
+  const filteredFindings = useMemo(() => {
     const query = queueSearch.trim().toLowerCase()
     return findings.filter((finding) =>
       !query ||
@@ -74,6 +79,15 @@ export function RemediationPage() {
         .some((value) => value.toLowerCase().includes(query)),
     )
   }, [findings, queueSearch])
+  const visibleFindings = useMemo(
+    () => filteredFindings.filter((finding) => domain === 'all' || getFindingDomain(finding) === domain),
+    [filteredFindings, domain],
+  )
+  const domainCounts = filteredFindings.reduce<Record<DomainId, number>>((counts, finding) => {
+    counts[getFindingDomain(finding)] += 1
+    return counts
+  }, { compute: 0, security: 0, storage: 0, finops: 0 })
+  const domainGroups = groupByDomain(visibleFindings, getFindingDomain, domain)
 
   async function quickTransition(finding: FindingRead, nextStatus: FindingStatus) {
     setUpdating({ findingId: finding.id, target: nextStatus })
@@ -146,61 +160,60 @@ export function RemediationPage() {
                 Clear Filters
               </button>
             )}
-            <span className="result-count">{visibleFindings.length} of {findings.length} active findings</span>
+            <span className="result-count">{visibleFindings.length} of {filteredFindings.length} filtered active findings</span>
           </div>
+          <DomainSegmentedControl value={domain} counts={domainCounts} onChange={setDomain} />
           {visibleFindings.length === 0 ? (
             <EmptyState
               title={findings.length === 0 ? 'Queue is clear' : 'No matching findings'}
-              description={findings.length === 0 ? 'No open or acknowledged findings are waiting for operator review.' : 'Clear the search filter to see the rest of the operator queue.'}
+              description={findings.length === 0 ? 'No open or acknowledged findings are waiting for operator review.' : 'Clear the search filter or choose another domain to see the rest of the operator queue.'}
             />
           ) : (
-            <div className="table-card surface-card remediation-table-card">
-              <div className="table-scroll remediation-table-wrapper">
-                <table className="data-table remediation-table">
-                  <thead><tr><th>Finding</th><th>Severity</th><th>Resource</th><th>Status</th><th>Last updated</th><th>Quick action</th></tr></thead>
-                  <tbody>
-                    {visibleFindings.map((finding) => (
-                      <tr key={finding.id}>
-                        <td>
-                          <button className="table-primary-link" type="button" onClick={() => setSelected(finding)}>{finding.title}</button>
-                          <span className="table-subtext">{finding.rule_id} · {finding.category}</span>
-                        </td>
-                        <td><SeverityPill severity={finding.severity} /></td>
-                        <td>
-                          <span className="resource-cell">{finding.resource_id}</span>
-                          <span className="table-subtext">{finding.resource_type} · {finding.region}</span>
-                        </td>
-                        <td><StatusPill status={finding.status} /></td>
-                        <td>{new Date(finding.updated_at).toLocaleDateString()}</td>
-                        <td>
-                          <div className="quick-actions">
+            <div className="domain-section-list">
+              {domainGroups.map(({ domain: section, items }) => (
+                <DomainSection key={section.id} domain={section} count={items.length}>
+                  <div className="data-grid-list">
+                    {items.map((finding) => (
+                      <FindingDataCard
+                        key={finding.id}
+                        finding={finding}
+                        onOpen={() => setSelected(finding)}
+                        actions={
+                          <>
                             {finding.status === 'OPEN' && (
                               <button
-                                className="button button-table remediation-action-btn"
+                                className="domain-action-button"
                                 type="button"
-                                onClick={() => void quickTransition(finding, 'ACKNOWLEDGED')}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void quickTransition(finding, 'ACKNOWLEDGED')
+                                }}
                                 disabled={updating?.findingId === finding.id}
                               >
-                                {updating?.findingId === finding.id && updating.target === 'ACKNOWLEDGED' ? 'Saving…' : 'Acknowledge Finding'}
+                                {updating?.findingId === finding.id && updating.target === 'ACKNOWLEDGED' ? 'Saving…' : 'Acknowledge'}
                               </button>
                             )}
                             <button
-                              className="button button-table remediation-action-btn"
+                              className="domain-action-button"
                               type="button"
-                              onClick={() => void quickTransition(finding, 'RESOLVED')}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void quickTransition(finding, 'RESOLVED')
+                              }}
                               disabled={updating?.findingId === finding.id}
                             >
                               {updating?.findingId === finding.id && updating.target === 'RESOLVED'
                                 ? 'Saving…'
                                 : 'Mark Resolved'}
                             </button>
-                          </div>
-                        </td>
-                      </tr>
+                            <span className="data-grid-timestamp">{formatDate(finding.updated_at)}</span>
+                          </>
+                        }
+                      />
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </DomainSection>
+              ))}
             </div>
           )}
         </>

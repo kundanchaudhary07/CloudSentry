@@ -1,5 +1,5 @@
 import { ChartNoAxesCombined, CircleDollarSign, Lightbulb, ReceiptText } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -11,6 +11,8 @@ import {
 } from 'recharts'
 import type { YAxisTickContentProps } from 'recharts'
 import { FindingDrawer } from '../../components/ui/FindingDrawer'
+import { FindingDataCard } from '../../components/ui/FindingDataCard'
+import { DomainSection, DomainSegmentedControl } from '../../components/ui/DomainSections'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import {
   EmptyState,
@@ -18,13 +20,16 @@ import {
   LoadingState,
   NoScansState,
   PageHeader,
-  SeverityPill,
-  StatusPill,
 } from '../../components/ui/Feedback'
 import { formatAmount, formatDate } from '../../utils/format'
 import { useScanContext } from '../../context/scan-context'
 import { getApiErrorMessage, getCosts } from '../../services/api'
 import type { CostResponse, FindingDetailRead, FindingRead } from '../../types/api'
+import { getFindingDomain, groupByDomain } from '../../utils/dataDomains'
+import type { DomainFilter, DomainId } from '../../utils/dataDomains'
+import '../../styles/data-grid.css'
+
+const EMPTY_FINDINGS: FindingRead[] = []
 
 export function CostsPage() {
   const { scans, loading: scansLoading, error: scansError } = useScanContext()
@@ -32,6 +37,7 @@ export function CostsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<FindingRead | null>(null)
+  const [domain, setDomain] = useState<DomainFilter>('all')
   const latestCompleted = scans.find((scan) => scan.status === 'COMPLETED')
   const latestCompletedId = latestCompleted?.id
 
@@ -79,6 +85,16 @@ export function CostsPage() {
   const spendAvailable = Boolean(costExplorer?.cost_explorer_available)
   const trendAvailable = spendAvailable && costExplorer?.trend_percent_change !== null
   const breakdown = costExplorer?.service_breakdown ?? []
+  const findings = report?.findings ?? EMPTY_FINDINGS
+  const domainCounts = findings.reduce<Record<DomainId, number>>((counts, finding) => {
+    counts[getFindingDomain(finding)] += 1
+    return counts
+  }, { compute: 0, security: 0, storage: 0, finops: 0 })
+  const visibleFindings = useMemo(
+    () => findings.filter((finding) => domain === 'all' || getFindingDomain(finding) === domain),
+    [findings, domain],
+  )
+  const domainGroups = groupByDomain(visibleFindings, getFindingDomain, domain)
   const chartBreakdown = breakdown.map((service) => ({
     ...service,
     amount: clampNearZero(service.amount),
@@ -256,29 +272,23 @@ export function CostsPage() {
             {report.findings.length === 0 ? (
               <EmptyState title="No FinOps findings" description="No waste signals were generated for this scan." />
             ) : (
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead><tr><th>Opportunity</th><th>Severity</th><th>Resource</th><th>Region</th><th>Status</th><th><span className="sr-only">Inspect</span></th></tr></thead>
-                  <tbody>
-                    {report.findings.map((finding) => (
-                      <tr key={finding.id}>
-                        <td>
-                          <button className="table-primary-link" type="button" onClick={() => setSelected(finding)}>{finding.title}</button>
-                          <span className="rule-id-chip">{finding.rule_id}</span>
-                        </td>
-                        <td><SeverityPill severity={finding.severity} /></td>
-                        <td><span className="resource-cell">{finding.resource_id}</span></td>
-                        <td>{finding.region}</td>
-                        <td><StatusPill status={finding.status} /></td>
-                        <td>
-                          <button className="circle-arrow-button" type="button" onClick={() => setSelected(finding)} aria-label={`Open ${finding.rule_id}`}>
-                            <span aria-hidden="true">→</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div>
+                <DomainSegmentedControl value={domain} counts={domainCounts} onChange={setDomain} />
+                <div className="domain-section-list">
+                  {domainGroups.map(({ domain: section, items }) => (
+                    <DomainSection key={section.id} domain={section} count={items.length}>
+                      <div className="data-grid-list">
+                        {items.map((finding) => (
+                          <FindingDataCard
+                            key={finding.id}
+                            finding={finding}
+                            onOpen={() => setSelected(finding)}
+                          />
+                        ))}
+                      </div>
+                    </DomainSection>
+                  ))}
+                </div>
               </div>
             )}
           </section>

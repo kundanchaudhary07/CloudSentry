@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Activity,
   Bell,
   Boxes,
   ChevronDown,
@@ -48,7 +49,8 @@ const navigation = [
   { path: '/costs', label: 'Cost Intelligence', icon: BarChart3 },
   { path: '/findings', label: 'Security Findings', icon: ShieldAlert },
   { path: '/remediation', label: 'Remediation', icon: Wrench },
-  { path: '/scans', label: 'Scan Reports', icon: FileText },
+  { path: '/scans', label: 'Scan History', icon: Activity },
+  { path: '/reports', label: 'Reports', icon: FileText },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 

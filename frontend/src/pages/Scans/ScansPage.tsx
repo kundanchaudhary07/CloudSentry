@@ -1,7 +1,8 @@
-import { Activity, ArrowRight, Boxes, FileText, ShieldCheck } from 'lucide-react'
+import { Activity, ArrowRight, Boxes, Clock3, FileText, MapPin, ShieldCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ScanDrawer } from '../../components/ui/ScanDrawer'
+import { DomainSection } from '../../components/ui/DomainSections'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import { ScanTriggerButton } from '../../components/ui/ScanTriggerButton'
 import {
@@ -16,6 +17,7 @@ import { formatDate } from '../../utils/format'
 import { useScanContext } from '../../context/scan-context'
 import { readScanSettings } from '../../services/scanSettings'
 import type { ScanRead, ScanStatus } from '../../types/api'
+import '../../styles/data-grid.css'
 
 const scanStatuses: ScanStatus[] = ['RUNNING', 'COMPLETED', 'FAILED']
 
@@ -29,6 +31,8 @@ export function ScansPage() {
     () => scans.filter((scan) => !status || scan.status === status),
     [scans, status],
   )
+  const latestVisible = latestScan && visibleScans.some((scan) => scan.id === latestScan.id) ? latestScan : null
+  const historicalScans = visibleScans.filter((scan) => scan.id !== latestScan?.id)
 
   return (
     <div>
@@ -84,51 +88,21 @@ export function ScansPage() {
           {visibleScans.length === 0 ? (
             <EmptyState title="No scans in this status" description="Choose another status to see its scan runs." />
           ) : (
-            <div className="table-card surface-card">
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Started</th>
-                      <th>Status</th>
-                      <th>Resources</th>
-                      <th>Posture</th>
-                      <th>Severity counts</th>
-                      <th>Regions</th>
-                      <th><span className="sr-only">Inspect</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleScans.map((scan) => (
-                      <tr key={scan.id}>
-                        <td>
-                          <button className="table-primary-link" type="button" onClick={() => setSelected(scan)}>
-                            {formatDate(scan.started_at)}
-                          </button>
-                          <span className="table-subtext">{scan.completed_at ? `Completed ${formatDate(scan.completed_at)}` : 'Not completed'}</span>
-                        </td>
-                        <td><StatusPill status={scan.status} /></td>
-                        <td>{scan.resource_count.toLocaleString()}</td>
-                        <td>{scan.posture_score === null ? '—' : `${scan.posture_score} / 100`}</td>
-                        <td>
-                          <div className="severity-inline">
-                            <span className="critical-text">C {scan.severity_counts.critical ?? 0}</span>
-                            <span className="high-text">H {scan.severity_counts.high ?? 0}</span>
-                            <span>M {scan.severity_counts.medium ?? 0}</span>
-                            <span>L {scan.severity_counts.low ?? 0}</span>
-                          </div>
-                        </td>
-                        <td>{scan.regions.length ? scan.regions.join(', ') : '—'}</td>
-                        <td>
-                          <button className="circle-arrow-button" type="button" onClick={() => setSelected(scan)} aria-label={`Inspect scan from ${formatDate(scan.started_at)}`}>
-                            <ArrowRight size={17} />
-                          </button>
-                        </td>
-                      </tr>
+            <div className="scan-groups">
+              {latestVisible && (
+                <ScanGroup id="latest-scan" title="Latest scan" description="Most recent inventory and posture snapshot" count={1}>
+                  <ScanDataCard scan={latestVisible} onOpen={() => setSelected(latestVisible)} />
+                </ScanGroup>
+              )}
+              {historicalScans.length > 0 && (
+                <ScanGroup id="historical-scans" title="Historical scan runs" description="Previous inventory and posture snapshots" count={historicalScans.length}>
+                  <div className="data-grid-list">
+                    {historicalScans.map((scan) => (
+                      <ScanDataCard key={scan.id} scan={scan} onOpen={() => setSelected(scan)} />
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </ScanGroup>
+              )}
             </div>
           )}
         </>
@@ -136,6 +110,110 @@ export function ScansPage() {
       {selected && <ScanDrawer scan={selected} onClose={() => setSelected(null)} />}
     </div>
   )
+}
+
+function ScanGroup({
+  id,
+  title,
+  description,
+  count,
+  children,
+}: {
+  id: string
+  title: string
+  description: string
+  count: number
+  children: ReactNode
+}) {
+  return (
+    <DomainSection
+      id={id}
+      domain={{ id: 'compute', label: title, title, subtitle: description }}
+      count={count}
+      className="scan-domain-section"
+    >
+      {children}
+    </DomainSection>
+  )
+}
+
+function ScanDataCard({ scan, onOpen }: { scan: ScanRead; onOpen: () => void }) {
+  const score = scan.posture_score
+  const duration = formatScanDuration(scan.started_at, scan.completed_at)
+  return (
+    <article
+      className="data-grid-row scan-card-row"
+      role="group"
+      tabIndex={0}
+      aria-label={`Inspect scan from ${formatDate(scan.started_at)}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
+    >
+      <div className="scan-card-primary">
+        <span className="resource-type-icon"><Activity size={17} aria-hidden="true" /></span>
+        <div className="data-grid-title">
+          <strong>{formatDate(scan.started_at)}</strong>
+          <small>{scan.completed_at ? `Completed ${formatDate(scan.completed_at)}` : 'In progress'}</small>
+        </div>
+      </div>
+      <div className="scan-card-meta">
+        <StatusPill status={scan.status} />
+        <span>{scan.resource_count.toLocaleString()} resources</span>
+        <span className="region-label"><MapPin size={13} aria-hidden="true" />{scan.regions.length ? scan.regions.join(', ') : '—'}</span>
+        <span className="region-label"><Clock3 size={13} aria-hidden="true" />{duration}</span>
+      </div>
+      <div className="scan-card-posture">
+        <div className="scan-card-posture-head">
+          <span>Posture score</span>
+          <strong>{score === null ? '—' : `${score}/100`}</strong>
+        </div>
+        <div
+          className="scan-posture-track"
+          role="progressbar"
+          aria-label="Posture score"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={score ?? 0}
+          aria-valuetext={score === null ? 'Unavailable' : `${score} out of 100`}
+        >
+          <div className="scan-posture-fill" style={{ width: `${score ?? 0}%` }} />
+        </div>
+      </div>
+      <div className="scan-severity-counts" aria-label="Finding counts by severity">
+        <span className="scan-severity-count critical">Critical {scan.severity_counts.critical ?? 0}</span>
+        <span className="scan-severity-count high">High {scan.severity_counts.high ?? 0}</span>
+        <span className="scan-severity-count medium">Medium {scan.severity_counts.medium ?? 0}</span>
+        <span className="scan-severity-count low">Low {scan.severity_counts.low ?? 0}</span>
+      </div>
+      <button
+        className="data-grid-inspect"
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onOpen()
+        }}
+      >
+        Inspect <ArrowRight size={15} aria-hidden="true" />
+      </button>
+      <ArrowRight className="data-grid-row-chevron" size={16} aria-hidden="true" />
+    </article>
+  )
+}
+
+function formatScanDuration(startedAt: string, completedAt: string | null): string {
+  if (!completedAt) return 'Running'
+  const elapsedMs = Math.max(0, Date.parse(completedAt) - Date.parse(startedAt))
+  const seconds = Math.floor(elapsedMs / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainderSeconds = seconds % 60
+  return remainderSeconds ? `${minutes}m ${remainderSeconds}s` : `${minutes}m`
 }
 
 function ScanSummaryCard({

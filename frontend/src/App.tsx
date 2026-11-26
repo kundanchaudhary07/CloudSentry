@@ -13,6 +13,7 @@ const FindingsPage = lazy(() => import('./pages/Findings/FindingsPage').then((mo
 const CostsPage = lazy(() => import('./pages/Costs/CostsPage').then((module) => ({ default: module.CostsPage })))
 const RemediationPage = lazy(() => import('./pages/Remediation/RemediationPage').then((module) => ({ default: module.RemediationPage })))
 const ScansPage = lazy(() => import('./pages/Scans/ScansPage').then((module) => ({ default: module.ScansPage })))
+const ReportsPage = lazy(() => import('./pages/Reports/ReportsPage').then((module) => ({ default: module.ReportsPage })))
 const SettingsPage = lazy(() => import('./pages/Settings/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage').then((module) => ({ default: module.ProfilePage })))
 const AuthenticationPage = lazy(() => import('./pages/Authentication/AuthenticationPage').then((module) => ({ default: module.AuthenticationPage })))
@@ -41,6 +42,7 @@ export default function App() {
                 <Route path="/costs" element={<CostsPage />} />
                 <Route path="/remediation" element={<RemediationPage />} />
                 <Route path="/scans" element={<ScansPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

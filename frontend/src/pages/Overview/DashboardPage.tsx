@@ -145,7 +145,7 @@ export function DashboardPage() {
       ? { type: 'scan', label: 'Run New Scan →' }
     : highCriticalCount > 0
       ? { type: 'link', label: `Inspect ${highCriticalCount} Critical/High →`, to: '/findings' }
-      : { type: 'link', label: 'View Latest Scan Report →', to: '/scans' }
+      : { type: 'link', label: 'View Latest Scan Report →', to: '/reports' }
 
   const refreshDashboard = useCallback(() => {
     if (!isAuthReady || !token) return
@@ -268,7 +268,7 @@ export function DashboardPage() {
             <QuickAccessCard to="/costs" title="Cost Intelligence" tone="mint" icon={<BarChart3 size={21} />} />
             <QuickAccessCard to="/findings" title="Security Findings" tone="coral" icon={<ShieldAlert size={21} />} />
             <QuickAccessCard to="/remediation" title="Remediation" tone="amber" icon={<Wrench size={21} />} />
-            <QuickAccessCard to="/scans" title="Reports" tone="violet" icon={<FileText size={21} />} />
+            <QuickAccessCard to="/reports" title="Reports" tone="violet" icon={<FileText size={21} />} />
           </section>
 
           <section className="dashboard-lower-grid">

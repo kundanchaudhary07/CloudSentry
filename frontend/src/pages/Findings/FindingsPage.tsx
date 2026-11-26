@@ -1,8 +1,10 @@
-import { ArrowRight, Search, ShieldAlert } from 'lucide-react'
+import { Search, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FindingDrawer } from '../../components/ui/FindingDrawer'
+import { FindingDataCard } from '../../components/ui/FindingDataCard'
+import { DomainSection, DomainSegmentedControl } from '../../components/ui/DomainSections'
 import { GradientHeroBanner } from '../../components/ui/GradientHeroBanner'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import {
@@ -11,8 +13,6 @@ import {
   LoadingState,
   NoScansState,
   PageHeader,
-  SeverityPill,
-  StatusPill,
 } from '../../components/ui/Feedback'
 import { useScanContext } from '../../context/scan-context'
 import { getApiErrorMessage, getFindings } from '../../services/api'
@@ -23,6 +23,9 @@ import type {
   FindingStatus,
   ResourceType,
 } from '../../types/api'
+import { getFindingDomain, groupByDomain } from '../../utils/dataDomains'
+import type { DomainFilter, DomainId } from '../../utils/dataDomains'
+import '../../styles/data-grid.css'
 
 const severities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 const statuses: FindingStatus[] = ['OPEN', 'ACKNOWLEDGED', 'RESOLVED']
@@ -45,6 +48,7 @@ export function FindingsPage() {
   const queryFromUrl = searchParams.get('search') ?? ''
   const [category, setCategory] = useState('')
   const [severity, setSeverity] = useState('')
+  const [domain, setDomain] = useState<DomainFilter>('all')
   const status = searchParams.get('status') ?? ''
   const [resourceType, setResourceType] = useState('')
   const [allFindings, setAllFindings] = useState<FindingRead[]>([])
@@ -83,6 +87,15 @@ export function FindingsPage() {
         .some((value) => value.toLowerCase().includes(query))),
     )
   }, [scanFindings, category, severity, status, resourceType, queryFromUrl])
+  const domainCounts = findings.reduce<Record<DomainId, number>>((counts, finding) => {
+    counts[getFindingDomain(finding)] += 1
+    return counts
+  }, { compute: 0, security: 0, storage: 0, finops: 0 })
+  const visibleFindings = useMemo(
+    () => findings.filter((finding) => domain === 'all' || getFindingDomain(finding) === domain),
+    [findings, domain],
+  )
+  const domainGroups = groupByDomain(visibleFindings, getFindingDomain, domain)
 
   function setSearch(value: string) {
     const next = new URLSearchParams(searchParams)
@@ -101,6 +114,7 @@ export function FindingsPage() {
   function resetFilters() {
     setCategory('')
     setSeverity('')
+    setDomain('all')
     setResourceType('')
     const next = new URLSearchParams(searchParams)
     next.delete('search')
@@ -219,7 +233,7 @@ export function FindingsPage() {
                 Clear Filters
               </button>
             )}
-            <span className="result-count">{findings.length} of {scanFindings.length} findings</span>
+            <span className="result-count">{visibleFindings.length} of {findings.length} filtered findings</span>
           </div>
 
           <section className="surface-card findings-filter-panel" aria-label="Finding filters">
@@ -248,57 +262,31 @@ export function FindingsPage() {
               ))}
             </FilterGroup>
           </section>
+          <DomainSegmentedControl value={domain} counts={domainCounts} onChange={setDomain} />
 
           {findingsError && <ErrorState message={findingsError} onRetry={retryFindings} />}
           {findingsLoading && <LoadingState label="Loading findings…" />}
-          {!findingsLoading && !findingsError && findings.length === 0 && (
+          {!findingsLoading && !findingsError && visibleFindings.length === 0 && (
             <EmptyState
               title={scanFindings.length === 0 ? 'No findings in this scan' : 'No findings match these filters'}
-              description={scanFindings.length === 0 ? 'This scan produced no findings.' : 'Reset or widen the active filters to see matching findings.'}
+              description={scanFindings.length === 0 ? 'This scan produced no findings.' : 'Reset or widen the active filters and domain selection to see matching findings.'}
             />
           )}
-          {!findingsLoading && findings.length > 0 && (
-            <div className="table-card surface-card">
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Finding</th>
-                      <th>Severity</th>
-                      <th>Category</th>
-                      <th>Resource</th>
-                      <th>Region</th>
-                      <th>Status</th>
-                      <th><span className="sr-only">Inspect</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {findings.map((finding) => (
-                      <tr key={finding.id}>
-                        <td>
-                          <button className="table-primary-link" type="button" onClick={() => setSelected(finding)}>
-                            {finding.title}
-                          </button>
-                          <span className="rule-id-chip">{finding.rule_id}</span>
-                        </td>
-                        <td><SeverityPill severity={finding.severity} /></td>
-                        <td>{finding.category}</td>
-                        <td>
-                          <span className="resource-cell">{finding.resource_id}</span>
-                          <span className="table-subtext">{finding.resource_type}</span>
-                        </td>
-                        <td>{finding.region}</td>
-                        <td><StatusPill status={finding.status} /></td>
-                        <td>
-                          <button className="circle-arrow-button" type="button" onClick={() => setSelected(finding)} aria-label={`Open ${finding.rule_id}`}>
-                            <ArrowRight size={17} />
-                          </button>
-                        </td>
-                      </tr>
+          {!findingsLoading && visibleFindings.length > 0 && (
+            <div className="domain-section-list">
+              {domainGroups.map(({ domain: section, items }) => (
+                <DomainSection key={section.id} domain={section} count={items.length}>
+                  <div className="data-grid-list">
+                    {items.map((finding) => (
+                      <FindingDataCard
+                        key={finding.id}
+                        finding={finding}
+                        onOpen={() => setSelected(finding)}
+                      />
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </DomainSection>
+              ))}
             </div>
           )}
         </>

@@ -1,4 +1,4 @@
-import { Boxes, Database, Network, Search, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Boxes, Database, HardDrive, MapPin, Search, Server, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -7,6 +7,7 @@ import { useScanContext } from '../../context/scan-context'
 import type { ResourceRead, ResourceType } from '../../types/api'
 import { ResourceDrawer } from '../../components/ui/ResourceDrawer'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
+import { DomainSection, DomainSegmentedControl } from '../../components/ui/DomainSections'
 import {
   EmptyState,
   ErrorState,
@@ -15,6 +16,9 @@ import {
   PageHeader,
   StatusPill,
 } from '../../components/ui/Feedback'
+import { getResourceDomain, groupByDomain } from '../../utils/dataDomains'
+import type { DomainFilter, DomainId } from '../../utils/dataDomains'
+import '../../styles/data-grid.css'
 
 const resourceTypes: ResourceType[] = [
   'EC2',
@@ -35,6 +39,7 @@ export function InventoryPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [region, setRegion] = useState('')
+  const [domain, setDomain] = useState<DomainFilter>('all')
   const [selected, setSelected] = useState<ResourceRead | null>(null)
   const latestCompletedId = scans.find((scan) => scan.status === 'COMPLETED')?.id
   const type = searchParams.get('type') ?? ''
@@ -87,7 +92,7 @@ export function InventoryPage() {
     () => [...new Set(resources.map((resource) => resource.region))].sort(),
     [resources],
   )
-  const visibleResources = useMemo(() => {
+  const filteredResources = useMemo(() => {
     const query = search.trim().toLowerCase()
     return resources.filter((resource) => {
       const matchesType = !type || resource.resource_type === type
@@ -99,8 +104,18 @@ export function InventoryPage() {
       return matchesType && matchesRegion && matchesSearch
     })
   }, [resources, search, type, region])
-  const storageCount = resources.filter((resource) => resource.resource_type === 'EBS' || resource.resource_type === 'S3').length
-  const identityNetworkCount = resources.filter((resource) => ['SecurityGroup', 'IAMUser', 'IAMRole', 'RDS'].includes(resource.resource_type)).length
+  const visibleResources = useMemo(
+    () => filteredResources.filter((resource) => domain === 'all' || getResourceDomain(resource) === domain),
+    [filteredResources, domain],
+  )
+  const domainGroups = groupByDomain(visibleResources, getResourceDomain, domain)
+  const domainCounts = filteredResources.reduce<Record<DomainId, number>>((counts, resource) => {
+    counts[getResourceDomain(resource)] += 1
+    return counts
+  }, { compute: 0, security: 0, storage: 0, finops: 0 })
+  const storageCount = resources.filter((resource) => resource.resource_type === 'S3' || resource.resource_type === 'RDS').length
+  const computeCount = resources.filter((resource) => resource.resource_type === 'EC2' || resource.resource_type === 'EBS').length
+  const securityCount = resources.filter((resource) => ['SecurityGroup', 'IAMUser', 'IAMRole', 'CloudTrail'].includes(resource.resource_type)).length
   const activeFilters = Boolean(search.trim() || type || region)
 
   function resetFilters() {
@@ -129,9 +144,9 @@ export function InventoryPage() {
         <>
           <section className="inventory-summary-grid remediation-kpi-grid" aria-label="Inventory totals">
             <InventorySummaryCard label="Total assets" value={loading ? null : resources.length} tone="blue" icon={<Boxes size={20} />} />
-            <InventorySummaryCard label="Compute · EC2" value={loading ? null : resources.filter((resource) => resource.resource_type === 'EC2').length} tone="violet" icon={<Boxes size={20} />} />
-            <InventorySummaryCard label="Storage · S3 & EBS" value={loading ? null : storageCount} tone="mint" icon={<Database size={20} />} />
-            <InventorySummaryCard label="Network · identity · RDS" value={loading ? null : identityNetworkCount} tone="amber" icon={<Network size={20} />} />
+            <InventorySummaryCard label="Compute & servers" value={loading ? null : computeCount} tone="violet" icon={<Boxes size={20} />} />
+            <InventorySummaryCard label="Storage & databases" value={loading ? null : storageCount} tone="mint" icon={<Database size={20} />} />
+            <InventorySummaryCard label="Security & identity" value={loading ? null : securityCount} tone="amber" icon={<ShieldCheck size={20} />} />
           </section>
 
           <div className="toolbar surface-card inventory-toolbar">
@@ -184,62 +199,72 @@ export function InventoryPage() {
               ))}
             </div>
           </div>
+          <DomainSegmentedControl value={domain} counts={domainCounts} onChange={setDomain} />
 
           {loading && <LoadingState label="Loading inventory…" />}
           {!loading && !error && visibleResources.length === 0 && (
             <EmptyState
               title={resources.length === 0 ? 'No resources discovered' : 'No matching resources'}
-              description={resources.length === 0 ? 'The latest completed scan returned no normalized resources.' : 'Adjust or clear the filters to see more resources.'}
+              description={resources.length === 0 ? 'The latest completed scan returned no normalized resources.' : 'Adjust the domain, type, region, or search filters to see more resources.'}
             />
           )}
           {!loading && visibleResources.length > 0 && (
-            <div className="table-card surface-card">
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Resource</th>
-                      <th>Region</th>
-                      <th>State</th>
-                      <th>Tags</th>
-                      <th><span className="sr-only">Inspect</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleResources.map((resource) => (
-                      <tr key={resource.id}>
-                        <td>
-                          <div className="resource-identity">
-                            <ResourceTypeBadge type={resource.resource_type} />
-                            <div>
-                              <button className="table-primary-link" type="button" onClick={() => setSelected(resource)}>
-                                {resource.name || resource.resource_id}
-                              </button>
-                              <span className="table-subtext">{resource.resource_type} · {resource.resource_id}</span>
-                            </div>
+            <div className="domain-section-list">
+              {domainGroups.map(({ domain: section, items }) => (
+                <DomainSection key={section.id} domain={section} count={items.length}>
+                  <div className="data-grid-list">
+                    {items.map((resource) => (
+                      <article
+                        key={resource.id}
+                        className="data-grid-row inventory-data-row"
+                        data-domain={section.id}
+                        role="group"
+                        tabIndex={0}
+                        aria-label={`Inspect ${resource.name || resource.resource_id}`}
+                        onClick={() => setSelected(resource)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelected(resource)
+                          }
+                        }}
+                      >
+                        <div className="resource-data-primary">
+                          <span className="resource-type-icon"><ResourceTypeIcon type={resource.resource_type} /></span>
+                          <div className="data-grid-title">
+                            <strong>{resource.name || resource.resource_id}</strong>
+                            <small>{resource.resource_type} · {resource.resource_id}</small>
                           </div>
-                        </td>
-                        <td>{resource.region}</td>
-                        <td><StatusPill status={resource.state} /></td>
-                        <td>
-                          <div className="resource-tag-list">
-                            {Object.entries(resource.tags).slice(0, 2).map(([key, value]) => (
-                              <span className="resource-tag-chip" key={key}>{key}: {value || '—'}</span>
-                            ))}
-                            {Object.keys(resource.tags).length === 0 && <span className="muted-copy">No tags</span>}
-                            {Object.keys(resource.tags).length > 2 && <span className="tag-count">+{Object.keys(resource.tags).length - 2}</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <button className="circle-arrow-button" type="button" onClick={() => setSelected(resource)} aria-label={`Inspect ${resource.resource_id}`}>
-                            <span aria-hidden="true">→</span>
-                          </button>
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="resource-data-meta">
+                          <code>{resource.resource_id}</code>
+                          <span className="region-label"><MapPin size={13} aria-hidden="true" />{resource.region || 'global'}</span>
+                        </div>
+                        <div className="finding-state-cluster"><StatusPill status={resource.state} /></div>
+                        <div className="resource-data-tags">
+                          {Object.entries(resource.tags).slice(0, 2).map(([key, value]) => (
+                            <span className="resource-tag-chip" key={key}>{key}: {value || '—'}</span>
+                          ))}
+                          {Object.keys(resource.tags).length === 0 && <span className="muted-copy">No tags</span>}
+                          {Object.keys(resource.tags).length > 2 && <span className="tag-count">+{Object.keys(resource.tags).length - 2}</span>}
+                        </div>
+                        <button
+                          className="data-grid-inspect"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setSelected(resource)
+                          }}
+                        >
+                          Inspect <ArrowRight size={15} aria-hidden="true" />
+                        </button>
+                        <ArrowRight className="data-grid-row-chevron" size={16} aria-hidden="true" />
+                      </article>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </DomainSection>
+              ))}
             </div>
           )}
         </>
@@ -274,17 +299,11 @@ function InventorySummaryCard({
   )
 }
 
-function ResourceTypeBadge({ type }: { type: string }) {
-  const icon = type === 'S3' || type === 'EBS' || type === 'RDS'
-    ? <Database size={17} />
-    : type === 'SecurityGroup'
-      ? <ShieldCheck size={17} />
-      : <Boxes size={17} />
-  const tone = type === 'S3' || type === 'EBS' || type === 'RDS'
-    ? 'mint'
-    : type === 'SecurityGroup'
-      ? 'coral'
-      : 'blue'
-
-  return <PastelIconBadge tone={tone}>{icon}</PastelIconBadge>
+function ResourceTypeIcon({ type }: { type: string }) {
+  if (type === 'S3' || type === 'RDS') return <Database size={17} aria-hidden="true" />
+  if (type === 'EBS') return <HardDrive size={17} aria-hidden="true" />
+  if (type === 'SecurityGroup' || type === 'IAMUser' || type === 'IAMRole' || type === 'CloudTrail') {
+    return <ShieldCheck size={17} aria-hidden="true" />
+  }
+  return <Server size={17} aria-hidden="true" />
 }
