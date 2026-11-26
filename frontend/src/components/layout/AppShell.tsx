@@ -1,8 +1,11 @@
 import {
+  ArrowRight,
   BarChart3,
   Activity,
   Bell,
   Boxes,
+  CalendarDays,
+  Check,
   ChevronDown,
   Database,
   FileText,
@@ -30,6 +33,8 @@ import {
   getAwsCredentials,
   getApiErrorMessage,
   getDashboard,
+  type AuthUser,
+  type AwsCredentialsRead,
 } from '../../services/api'
 import {
   readOperatorSession,
@@ -40,7 +45,6 @@ import { readScanSettings } from '../../services/scanSettings'
 import type { DashboardRead } from '../../types/api'
 import { CloudSentryLogo } from '../ui/CloudSentryLogo'
 import { ScanTriggerButton } from '../ui/ScanTriggerButton'
-import { ProfileModal } from '../common/ProfileModal'
 
 const navigation = [
   { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -73,6 +77,29 @@ function readStoredNotificationIds(userId: string): string[] {
   return []
 }
 
+function getProfileInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length > 1) return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+  return parts[0]?.slice(0, 2).toUpperCase() ?? ''
+}
+
+function formatMemberSince(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+    year: 'numeric',
+  }).format(date)
+}
+
+function formatMaskedAwsKey(value: string | null) {
+  if (!value) return null
+  if (value.includes('••••')) return value
+  return `••••${value.slice(-4)}`
+}
+
 export function AppShell() {
   const [search, setSearch] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -103,6 +130,12 @@ export function AppShell() {
   const [notificationError, setNotificationError] = useState<string | null>(null)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
+  const [profileData, setProfileData] = useState<{
+    user: AuthUser
+    aws: AwsCredentialsRead
+  } | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [awsConnectionPromptOpen, setAwsConnectionPromptOpen] = useState(false)
   const [awsConnected, setAwsConnected] = useState<boolean | null>(null)
   const [awsDefaultRegion, setAwsDefaultRegion] = useState('us-east-1')
@@ -301,6 +334,15 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', closePromptOnEscape)
   }, [awsConnectionPromptOpen])
 
+  useEffect(() => {
+    if (!profileModalOpen) return
+    function closeProfileOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') setProfileModalOpen(false)
+    }
+    window.addEventListener('keydown', closeProfileOnEscape)
+    return () => window.removeEventListener('keydown', closeProfileOnEscape)
+  }, [profileModalOpen])
+
   function closeProfileAfterPointerLeave() {
     window.setTimeout(() => {
       if (
@@ -315,6 +357,17 @@ export function AppShell() {
   async function openProfile() {
     setProfileMenuOpen(false)
     setProfileModalOpen(true)
+    setProfileData(null)
+    setProfileError(null)
+    setProfileLoading(true)
+    try {
+      const [user, aws] = await Promise.all([getCurrentUser(), getAwsCredentials()])
+      setProfileData({ user, aws })
+    } catch (requestError: unknown) {
+      setProfileError(getApiErrorMessage(requestError))
+    } finally {
+      setProfileLoading(false)
+    }
   }
 
   function logout() {
@@ -367,6 +420,14 @@ export function AppShell() {
     return notificationUserId ? readStoredNotificationIds(notificationUserId) : []
   }, [notificationReadState, notificationUserId])
   const unreadCount = notificationIds.filter((id) => !readNotificationIds.includes(id)).length
+  const profileUser = profileData?.user
+  const profileAws = profileData?.aws
+  const profileProvider = profileUser?.auth_provider === 'google'
+    ? 'Google OAuth'
+    : profileUser?.auth_provider === 'aws'
+      ? 'Legacy federated account'
+      : 'Email and password'
+  const profileAwsKey = formatMaskedAwsKey(profileAws?.aws_access_key_id_preview ?? null)
   const awsConnectionContextValue = {
     awsConnected: awsConnected === true,
     connectionRevision: awsConnectionRevision,
@@ -585,13 +646,133 @@ export function AppShell() {
         </div>
       )}
       {profileModalOpen && (
-        <ProfileModal
-          onClose={() => setProfileModalOpen(false)}
-          onOpenSettings={() => {
-            setProfileModalOpen(false)
-            navigate('/settings')
+        <div
+          className="profile-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setProfileModalOpen(false)
           }}
-        />
+        >
+          <section
+            className="profile-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-modal-title"
+            style={{
+              width: 'min(500px, 92vw)',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              background: '#ffffff',
+              backgroundColor: '#ffffff',
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
+            }}
+          >
+            <header className="profile-modal-header">
+              <div>
+                <span className="profile-modal-eyebrow">WORKSPACE ACCOUNT</span>
+                <h2 id="profile-modal-title">Your profile</h2>
+                <p>Identity, authentication method, and connected AWS environment.</p>
+              </div>
+              <button
+                className="profile-modal-close"
+                type="button"
+                aria-label="Close profile"
+                onClick={() => setProfileModalOpen(false)}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </header>
+
+            {profileError && <div className="form-feedback error profile-modal-feedback" role="alert">{profileError}</div>}
+            {profileLoading && <div className="profile-loading" role="status">Loading profile…</div>}
+            {profileUser && profileAws && (
+              <>
+                <section className="profile-identity-card" aria-label="Account identity">
+                  <span className="profile-modal-avatar-initials" aria-hidden="true">
+                    {getProfileInitials(profileUser.full_name)}
+                  </span>
+                  <div className="profile-identity-main">
+                    <div className="profile-identity-heading">
+                      <strong>{profileUser.full_name}</strong>
+                      <span className="profile-role-badge">Cloud Operator</span>
+                    </div>
+                    <div className="profile-email-row">
+                      <span>{profileUser.email}</span>
+                      {profileUser.auth_provider === 'google' && (
+                        <span className="profile-verified-badge">
+                          <Check size={13} aria-hidden="true" /> Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <div className="profile-modal-metadata">
+                  <div className="profile-modal-metadata-grid">
+                    <section className="profile-metadata-card">
+                      <span className="profile-metadata-label">Sign-in provider</span>
+                      <strong className="profile-metadata-value">
+                        {profileUser.auth_provider === 'google' && (
+                          <span className="profile-google-mark" aria-hidden="true">G</span>
+                        )}
+                        {profileProvider}
+                      </strong>
+                    </section>
+                    <section className="profile-metadata-card">
+                      <span className="profile-metadata-label">Member since</span>
+                      <strong className="profile-metadata-value">
+                        <CalendarDays size={16} aria-hidden="true" />
+                        {formatMemberSince(profileUser.created_at)}
+                      </strong>
+                    </section>
+                  </div>
+
+                  <section className="profile-aws-card">
+                    <div className="profile-aws-details">
+                      <span className="profile-metadata-label">AWS Environment</span>
+                      <div className="profile-aws-meta">
+                        <span className="profile-aws-key">
+                          {profileAws.has_aws_credentials ? profileAwsKey ?? 'Key saved' : 'No key saved'}
+                        </span>
+                        <span className="profile-aws-region">
+                          {profileAws.aws_default_region || awsDefaultRegion}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`profile-aws-status${profileAws.has_aws_credentials ? ' is-connected' : ''}`}>
+                      {profileAws.has_aws_credentials && <span className="profile-aws-status-dot" aria-hidden="true" />}
+                      {profileAws.has_aws_credentials ? 'Connected' : 'Not connected'}
+                    </span>
+                  </section>
+                </div>
+
+              </>
+            )}
+            <footer className="profile-modal-footer">
+              <button
+                className="profile-modal-signout"
+                type="button"
+                onClick={() => {
+                  setProfileModalOpen(false)
+                  logout()
+                }}
+              >
+                <LogOut size={16} aria-hidden="true" />
+                Sign Out
+              </button>
+              <button
+                className="profile-modal-settings"
+                type="button"
+                onClick={() => {
+                  setProfileModalOpen(false)
+                  navigate('/settings')
+                }}
+              >
+                Manage AWS Settings <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
     </AwsConnectionContext.Provider>
   )
