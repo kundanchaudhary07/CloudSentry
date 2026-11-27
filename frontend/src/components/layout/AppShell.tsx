@@ -567,7 +567,9 @@ export function AppShell() {
           </form>
 
           <div className="app-header-controls">
-            {apiConnection === 'connected' && awsConnected === false
+            {apiConnection === 'connected'
+              && awsConnected === false
+              && awsConnectionStatus !== 'unavailable'
               ? (
                 <Link
                   className="api-indicator connected aws-disconnected"
@@ -581,7 +583,7 @@ export function AppShell() {
               )
               : (
                 <div
-                  className={`api-indicator ${apiConnection}${awsConnectionError ? ' aws-status-unavailable' : ''}`}
+                  className={`api-indicator ${apiConnection}${awsConnectionError || awsConnectionStatus === 'unavailable' ? ' aws-status-unavailable' : ''}`}
                   role="status"
                   title={awsConnectionError ?? dashboardError ?? undefined}
                 >
@@ -590,7 +592,7 @@ export function AppShell() {
                     {apiConnection === 'checking'
                       ? 'Connecting'
                       : apiConnection === 'connected'
-                        ? awsConnectionError
+                        ? awsConnectionError || awsConnectionStatus === 'unavailable'
                           ? 'AWS status unavailable'
                           : 'Connected'
                         : 'API unavailable'}
@@ -789,6 +791,8 @@ export function AppShell() {
                       {profileAws.connected && <span className="profile-aws-status-dot" aria-hidden="true" />}
                       {profileAws.status === 'revoked'
                         ? 'Key Revoked — Reconnect'
+                        : profileAws.status === 'unavailable'
+                          ? 'AWS verification unavailable'
                         : profileAws.connected
                           ? 'Connected'
                           : 'Disconnected'}

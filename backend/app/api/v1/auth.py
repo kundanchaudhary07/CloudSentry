@@ -46,6 +46,7 @@ class AuthMeRead(UserProfile):
     connected: bool
     status: str
     reason: str | None = None
+    validation_error: str | None = None
     account_id: str | None = None
     arn: str | None = None
     masked_access_key: str | None = None

@@ -1,7 +1,5 @@
-import base64
-import hashlib
+import logging
 
-from cryptography.fernet import Fernet
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -12,14 +10,17 @@ from app.api.v1.dependencies import get_current_user
 from app.config.settings import get_settings as app_get_settings
 from app.database.models import ScanSetting, User, UserAwsCredential
 from app.database.session import get_db
-
 from app.services.aws_connection import (
     INVALID_CREDENTIAL_ERROR_CODES,
+    AWSStsNetworkError,
     aws_connection_status,
+    encrypt_secret,
+    masked_access_key,
     verify_aws_credentials,
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+logger = logging.getLogger(__name__)
 
 
 class ScanSettingsRead(BaseModel):
@@ -34,7 +35,7 @@ class ScanSettingsRead(BaseModel):
 class AwsCredentialsRequest(BaseModel):
     aws_access_key_id: str = Field(min_length=1, max_length=128)
     aws_secret_access_key: str = Field(min_length=1, max_length=512)
-    aws_default_region: str = Field(default="us-east-1", min_length=1, max_length=64)
+    aws_default_region: str = Field(default="us-east-1", max_length=64)
     aws_role_arn: str | None = Field(default=None, max_length=512)
 
 
@@ -42,6 +43,7 @@ class AwsCredentialsRead(BaseModel):
     connected: bool
     status: str
     reason: str | None = None
+    validation_error: str | None = None
     account_id: str | None = None
     arn: str | None = None
     masked_access_key: str | None = None
@@ -55,11 +57,6 @@ class AwsCredentialsRead(BaseModel):
 class AwsConnectionDisconnectRead(BaseModel):
     connected: bool
     status: str
-
-
-def _fernet() -> Fernet:
-    key = hashlib.sha256(app_get_settings().app_secret_key.encode()).digest()
-    return Fernet(base64.urlsafe_b64encode(key))
 
 
 @router.get("", response_model=ScanSettingsRead)
@@ -101,47 +98,83 @@ def update_settings(
     return ScanSettingsRead.model_validate(setting, from_attributes=True)
 
 
+@router.post("/aws", response_model=AwsCredentialsRead)
+@router.put("/aws", response_model=AwsCredentialsRead)
 @router.put("/aws-credentials", response_model=AwsCredentialsRead)
 def put_aws_credentials(
     request: AwsCredentialsRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AwsCredentialsRead:
-    try:
-        verify_aws_credentials(
-            request.aws_access_key_id,
-            request.aws_secret_access_key,
-            request.aws_default_region,
-        )
-    except NoCredentialsError as exc:
+    access_key_id = request.aws_access_key_id.strip()
+    secret_access_key = request.aws_secret_access_key.strip()
+    region = request.aws_default_region.strip() or "us-east-1"
+    role_arn = (request.aws_role_arn or "").strip() or None
+    if not access_key_id or not secret_access_key:
         raise HTTPException(
             status_code=400,
-            detail="AWS IAM credentials are invalid or deleted in AWS.",
+            detail={
+                "validation_error": (
+                    "Enter both an AWS access key ID and secret access key."
+                )
+            },
+        )
+
+    encrypted_secret = encrypt_secret(secret_access_key)
+    try:
+        identity = verify_aws_credentials(
+            access_key_id,
+            secret_access_key,
+            region,
+            role_arn,
+        )
+    except AWSStsNetworkError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"validation_error": str(exc)},
+        ) from exc
+    except NoCredentialsError as exc:
+        logger.exception("AWS STS validation did not receive configured credentials.")
+        raise HTTPException(
+            status_code=503,
+            detail={"validation_error": f"NoCredentialsError: {exc}"},
         ) from exc
     except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") not in INVALID_CREDENTIAL_ERROR_CODES:
-            raise
+        error = exc.response.get("Error", {})
+        error_code = str(error.get("Code", "ClientError"))
+        error_message = str(error.get("Message", str(exc)))
+        logger.warning("AWS STS credential verification returned %s: %s", error_code, error_message)
         raise HTTPException(
-            status_code=400,
-            detail="AWS IAM credentials are invalid or deleted in AWS.",
+            status_code=400 if error_code in INVALID_CREDENTIAL_ERROR_CODES else 502,
+            detail={"validation_error": f"{error_code}: {error_message}"},
         ) from exc
 
     credential = db.scalar(
         select(UserAwsCredential).where(UserAwsCredential.user_id == current_user.id)
     )
-    encrypted_secret = _fernet().encrypt(request.aws_secret_access_key.encode()).decode()
     if credential is None:
         credential = UserAwsCredential(user_id=current_user.id)
         db.add(credential)
-    credential.aws_access_key_id = request.aws_access_key_id
+    credential.aws_access_key_id = access_key_id
     credential.encrypted_secret_access_key = encrypted_secret
-    credential.aws_default_region = request.aws_default_region
-    credential.aws_role_arn = request.aws_role_arn
+    credential.aws_default_region = region
+    credential.aws_role_arn = role_arn
     credential.is_valid = True
     db.commit()
-    db.refresh(credential)
-    return AwsCredentialsRead.model_validate(
-        aws_connection_status(db, current_user.id)
+    preview = masked_access_key(access_key_id)
+    return AwsCredentialsRead(
+        connected=True,
+        status="connected",
+        reason=None,
+        validation_error=None,
+        account_id=identity["account_id"],
+        arn=identity["arn"],
+        masked_access_key=preview,
+        region=region,
+        has_aws_credentials=True,
+        aws_access_key_id_preview=preview,
+        aws_default_region=region,
+        aws_role_arn=role_arn,
     )
 
 

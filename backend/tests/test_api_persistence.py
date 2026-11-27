@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
@@ -391,6 +391,7 @@ def test_revoked_aws_credentials_preserve_historical_data(
     assert status.json()["reason"] == (
         "AWS IAM access key is invalid or deleted in AWS."
     )
+    assert status.json()["validation_error"] == "InvalidClientTokenId: Invalid token"
 
     profile = api_client.get("/api/v1/auth/me")
     assert profile.status_code == 200
@@ -412,6 +413,133 @@ def test_revoked_aws_credentials_preserve_historical_data(
     assert len(api_client.get("/api/v1/findings").json()) == len(original_rows["findings"])
     assert len(api_client.get("/api/v1/inventory").json()) == len(original_rows["inventory"])
     assert created["status"] == "COMPLETED"
+
+
+def test_save_aws_credentials_strips_values_and_verifies_role(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_options: list[dict[str, Any]] = []
+    assumed_roles: list[dict[str, str]] = []
+
+    class MockSts:
+        def get_caller_identity(self) -> dict[str, str]:
+            return {"Account": "123456789012", "Arn": "arn:aws:iam::123456789012:user/test"}
+
+        def assume_role(self, **kwargs: str) -> dict[str, Any]:
+            assumed_roles.append(kwargs)
+            return {"Credentials": {}}
+
+    def make_client(service_name: str, **kwargs: Any) -> MockSts:
+        assert service_name == "sts"
+        client_options.append(kwargs)
+        return MockSts()
+
+    monkeypatch.setattr(aws_connection.boto3, "client", make_client)
+
+    response = api_client.put(
+        "/api/v1/settings/aws",
+        json={
+            "aws_access_key_id": "  AKIANORMAL1234  ",
+            "aws_secret_access_key": "  exact-secret-without-trailing-space  ",
+            "aws_default_region": "  us-west-2  ",
+            "aws_role_arn": "  arn:aws:iam::123456789012:role/CloudSentry  ",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["connected"] is True
+    assert data["status"] == "connected"
+    assert data["account_id"] == "123456789012"
+    assert data["region"] == "us-west-2"
+    assert client_options[0]["aws_access_key_id"] == "AKIANORMAL1234"
+    assert client_options[0]["aws_secret_access_key"] == "exact-secret-without-trailing-space"
+    assert client_options[0]["region_name"] == "us-west-2"
+    assert assumed_roles == [{
+        "RoleArn": "arn:aws:iam::123456789012:role/CloudSentry",
+        "RoleSessionName": "CloudSentryVerify",
+    }]
+
+    with database_session.SessionLocal() as db:
+        saved = db.scalar(
+            select(UserAwsCredential).where(
+                UserAwsCredential.user_id == UUID("00000000-0000-0000-0000-000000000001")
+            )
+        )
+        assert saved is not None
+        assert saved.aws_access_key_id == "AKIANORMAL1234"
+        assert saved.aws_default_region == "us-west-2"
+        assert saved.aws_role_arn == "arn:aws:iam::123456789012:role/CloudSentry"
+        assert aws_connection.decrypt_secret(saved.encrypted_secret_access_key) == (
+            "exact-secret-without-trailing-space"
+        )
+
+
+def test_save_invalid_aws_credentials_returns_exact_aws_validation_error(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class InvalidSts:
+        def get_caller_identity(self) -> dict[str, str]:
+            raise ClientError(
+                {"Error": {"Code": "SignatureDoesNotMatch", "Message": "Signature mismatch"}},
+                "GetCallerIdentity",
+            )
+
+    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: InvalidSts())
+
+    response = api_client.put(
+        "/api/v1/settings/aws-credentials",
+        json={
+            "aws_access_key_id": "AKIANEWKEY1234",
+            "aws_secret_access_key": "invalid-secret",
+            "aws_default_region": REGION,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["validation_error"] == (
+        "SignatureDoesNotMatch: Signature mismatch"
+    )
+    with database_session.SessionLocal() as db:
+        saved = db.scalar(
+            select(UserAwsCredential).where(
+                UserAwsCredential.user_id == UUID("00000000-0000-0000-0000-000000000001")
+            )
+        )
+        assert saved is not None
+        assert saved.aws_access_key_id == "AKIATEST1234"
+
+
+def test_sts_network_error_does_not_mark_saved_credentials_revoked(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class UnreachableSts:
+        def get_caller_identity(self) -> dict[str, str]:
+            raise EndpointConnectionError(
+                endpoint_url="https://sts.us-east-1.amazonaws.com"
+            )
+
+    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: UnreachableSts())
+
+    response = api_client.get("/api/v1/settings/aws")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["connected"] is False
+    assert data["status"] == "unavailable"
+    assert data["validation_error"] == aws_connection.STS_NETWORK_ERROR
+    with database_session.SessionLocal() as db:
+        saved = db.scalar(
+            select(UserAwsCredential).where(
+                UserAwsCredential.user_id == UUID("00000000-0000-0000-0000-000000000001")
+            )
+        )
+        assert saved is not None
+        assert saved.is_valid is True
+        assert aws_connection.decrypt_secret(saved.encrypted_secret_access_key) == "test-secret"
 
 
 def test_cors_allows_authenticated_aws_disconnect_preflight(

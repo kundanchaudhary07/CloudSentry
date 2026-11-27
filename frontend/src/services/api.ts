@@ -58,6 +58,7 @@ export interface AuthUser {
   connected?: boolean
   status?: AwsConnectionStatusValue
   reason?: string | null
+  validation_error?: string | null
   account_id?: string | null
   arn?: string | null
   masked_access_key?: string | null
@@ -102,6 +103,7 @@ export interface AwsCredentialsRead {
   connected: boolean
   status: AwsConnectionStatusValue
   reason: string | null
+  validation_error: string | null
   account_id: string | null
   arn: string | null
   masked_access_key: string | null
@@ -112,7 +114,7 @@ export interface AwsCredentialsRead {
   aws_role_arn: string | null
 }
 
-export type AwsConnectionStatusValue = 'connected' | 'revoked' | 'disconnected'
+export type AwsConnectionStatusValue = 'connected' | 'revoked' | 'disconnected' | 'unavailable'
 
 export interface AwsConnectionDisconnectRead {
   connected: boolean
