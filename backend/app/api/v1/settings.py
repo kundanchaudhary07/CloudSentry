@@ -120,7 +120,6 @@ def put_aws_credentials(
             },
         )
 
-    encrypted_secret = encrypt_secret(secret_access_key)
     try:
         identity = verify_aws_credentials(
             access_key_id,
@@ -149,6 +148,7 @@ def put_aws_credentials(
             detail={"validation_error": f"{error_code}: {error_message}"},
         ) from exc
 
+    encrypted_secret = encrypt_secret(secret_access_key)
     credential = db.scalar(
         select(UserAwsCredential).where(UserAwsCredential.user_id == current_user.id)
     )

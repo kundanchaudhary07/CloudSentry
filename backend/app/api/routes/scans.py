@@ -1,8 +1,5 @@
-import base64
-import hashlib
 from dataclasses import replace
 from uuid import UUID
-from cryptography.fernet import Fernet
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
@@ -10,7 +7,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.schemas import ScanCreateRequest, ScanDetailRead, ScanRead
 from app.api.v1.dependencies import get_current_user
-from app.config.settings import get_settings
 from app.database.models import Scan, User, UserAwsCredential
 from app.database.session import get_db
 import app.database.session as database_session
@@ -20,14 +16,9 @@ from app.services.scan_service import (
     get_scan_dependencies,
     run_and_persist_scan,
 )
-from app.services.aws_connection import aws_connection_status
+from app.services.aws_connection import aws_connection_status, decrypt_secret
 
 router = APIRouter(prefix="/scans", tags=["scans"])
-
-
-def _fernet() -> Fernet:
-    key = hashlib.sha256(get_settings().app_secret_key.encode()).digest()
-    return Fernet(base64.urlsafe_b64encode(key))
 
 
 def _run_scan_background(
@@ -43,9 +34,7 @@ def _run_scan_background(
             )
             if credential is None:
                 raise RuntimeError("AWS credentials are not configured for this user.")
-            secret = _fernet().decrypt(
-                credential.encrypted_secret_access_key.encode()
-            ).decode()
+            secret = decrypt_secret(credential.encrypted_secret_access_key)
             session_factory = lambda: create_aws_session_with_credentials(
                 credential.aws_access_key_id,
                 secret,

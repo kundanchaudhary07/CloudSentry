@@ -14,7 +14,13 @@ import type {
   ScanRead,
 } from '../types/api'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') || '/api/v1'
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '')
+
+export const API_BASE_URL = configuredApiBaseUrl
+  ? configuredApiBaseUrl.endsWith('/api/v1')
+    ? configuredApiBaseUrl
+    : `${configuredApiBaseUrl}/api/v1`
+  : '/api/v1'
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

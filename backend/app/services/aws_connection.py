@@ -84,11 +84,14 @@ def verify_aws_credentials(
         raise ValueError("AWS access key ID and secret access key are required.")
 
     try:
-        sts = boto3.client(
-            "sts",
+        session = boto3.Session(
             aws_access_key_id=clean_key_id,
             aws_secret_access_key=clean_secret,
+            aws_session_token=None,
             region_name=clean_region,
+        )
+        sts = session.client(
+            "sts",
             config=Config(
                 connect_timeout=4,
                 read_timeout=4,

@@ -19,20 +19,31 @@ def create_aws_session_with_credentials(
     region: str,
     role_arn: str | None = None,
 ) -> boto3.Session:
+    clean_key_id = access_key_id.strip()
+    clean_secret = secret_access_key.strip()
+    clean_region = region.strip() or "us-east-1"
+    clean_role_arn = (role_arn or "").strip() or None
+    if not clean_key_id or not clean_secret:
+        raise ValueError("AWS access key ID and secret access key are required.")
+
     session = boto3.Session(
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_access_key,
-        region_name=region,
+        aws_access_key_id=clean_key_id,
+        aws_secret_access_key=clean_secret,
+        aws_session_token=None,
+        region_name=clean_region,
     )
-    if role_arn:
+    if clean_role_arn:
         sts = session.client("sts")
-        assumed = sts.assume_role(RoleArn=role_arn, RoleSessionName="CloudSentryScan")
+        assumed = sts.assume_role(
+            RoleArn=clean_role_arn,
+            RoleSessionName="CloudSentryScan",
+        )
         credentials = assumed["Credentials"]
         return boto3.Session(
             aws_access_key_id=credentials["AccessKeyId"],
             aws_secret_access_key=credentials["SecretAccessKey"],
             aws_session_token=credentials["SessionToken"],
-            region_name=region,
+            region_name=clean_region,
         )
     return session
 

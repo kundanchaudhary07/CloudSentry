@@ -14,6 +14,7 @@ from sqlalchemy.pool import StaticPool
 from app.database.models import Base, User, UserAwsCredential
 from app.database.session import get_db
 from app.api.v1.dependencies import get_current_user
+from app.integrations.aws import session as aws_session
 from app.integrations.aws.models import (
     EC2CpuMetric,
     InventoryResource,
@@ -148,7 +149,15 @@ def api_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         def get_caller_identity(self) -> dict[str, str]:
             return {"Account": "123456789012", "Arn": "arn:aws:iam::123456789012:user/test"}
 
-    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: MockSts())
+    class MockSession:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def client(self, service_name: str, **kwargs: Any) -> MockSts:
+            assert service_name == "sts"
+            return MockSts()
+
+    monkeypatch.setattr(aws_connection.boto3, "Session", MockSession)
     app.dependency_overrides[get_db] = override_get_db
     original_session_local = database_session.SessionLocal
     database_session.SessionLocal = test_session
@@ -382,7 +391,15 @@ def test_revoked_aws_credentials_preserve_historical_data(
                 "GetCallerIdentity",
             )
 
-    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: InvalidSts())
+    class InvalidSession:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def client(self, service_name: str, **kwargs: Any) -> InvalidSts:
+            assert service_name == "sts"
+            return InvalidSts()
+
+    monkeypatch.setattr(aws_connection.boto3, "Session", InvalidSession)
 
     status = api_client.get("/api/v1/settings/aws")
     assert status.status_code == 200
@@ -419,6 +436,7 @@ def test_save_aws_credentials_strips_values_and_verifies_role(
     api_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    session_options: list[dict[str, Any]] = []
     client_options: list[dict[str, Any]] = []
     assumed_roles: list[dict[str, str]] = []
 
@@ -430,12 +448,16 @@ def test_save_aws_credentials_strips_values_and_verifies_role(
             assumed_roles.append(kwargs)
             return {"Credentials": {}}
 
-    def make_client(service_name: str, **kwargs: Any) -> MockSts:
-        assert service_name == "sts"
-        client_options.append(kwargs)
-        return MockSts()
+    class MockSession:
+        def __init__(self, **kwargs: Any) -> None:
+            session_options.append(kwargs)
 
-    monkeypatch.setattr(aws_connection.boto3, "client", make_client)
+        def client(self, service_name: str, **kwargs: Any) -> MockSts:
+            assert service_name == "sts"
+            client_options.append(kwargs)
+            return MockSts()
+
+    monkeypatch.setattr(aws_connection.boto3, "Session", MockSession)
 
     response = api_client.put(
         "/api/v1/settings/aws",
@@ -453,9 +475,14 @@ def test_save_aws_credentials_strips_values_and_verifies_role(
     assert data["status"] == "connected"
     assert data["account_id"] == "123456789012"
     assert data["region"] == "us-west-2"
-    assert client_options[0]["aws_access_key_id"] == "AKIANORMAL1234"
-    assert client_options[0]["aws_secret_access_key"] == "exact-secret-without-trailing-space"
-    assert client_options[0]["region_name"] == "us-west-2"
+    assert session_options[0] == {
+        "aws_access_key_id": "AKIANORMAL1234",
+        "aws_secret_access_key": "exact-secret-without-trailing-space",
+        "aws_session_token": None,
+        "region_name": "us-west-2",
+    }
+    assert client_options[0]["config"].connect_timeout == 4
+    assert client_options[0]["config"].read_timeout == 4
     assert assumed_roles == [{
         "RoleArn": "arn:aws:iam::123456789012:role/CloudSentry",
         "RoleSessionName": "CloudSentryVerify",
@@ -474,6 +501,10 @@ def test_save_aws_credentials_strips_values_and_verifies_role(
         assert aws_connection.decrypt_secret(saved.encrypted_secret_access_key) == (
             "exact-secret-without-trailing-space"
         )
+    status_response = api_client.get("/api/v1/settings/aws")
+    assert status_response.status_code == 200
+    assert status_response.json()["connected"] is True
+    assert status_response.json()["account_id"] == "123456789012"
 
 
 def test_save_invalid_aws_credentials_returns_exact_aws_validation_error(
@@ -487,7 +518,15 @@ def test_save_invalid_aws_credentials_returns_exact_aws_validation_error(
                 "GetCallerIdentity",
             )
 
-    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: InvalidSts())
+    class MockSession:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def client(self, service_name: str, **kwargs: Any) -> InvalidSts:
+            assert service_name == "sts"
+            return InvalidSts()
+
+    monkeypatch.setattr(aws_connection.boto3, "Session", MockSession)
 
     response = api_client.put(
         "/api/v1/settings/aws-credentials",
@@ -522,7 +561,15 @@ def test_sts_network_error_does_not_mark_saved_credentials_revoked(
                 endpoint_url="https://sts.us-east-1.amazonaws.com"
             )
 
-    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: UnreachableSts())
+    class MockSession:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def client(self, service_name: str, **kwargs: Any) -> UnreachableSts:
+            assert service_name == "sts"
+            return UnreachableSts()
+
+    monkeypatch.setattr(aws_connection.boto3, "Session", MockSession)
 
     response = api_client.get("/api/v1/settings/aws")
 
@@ -542,19 +589,58 @@ def test_sts_network_error_does_not_mark_saved_credentials_revoked(
         assert aws_connection.decrypt_secret(saved.encrypted_secret_access_key) == "test-secret"
 
 
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://localhost:5173",
+        "https://awssentry.vercel.app",
+        "https://cloudsentry-preview.vercel.app",
+    ],
+)
 def test_cors_allows_authenticated_aws_disconnect_preflight(
     api_client: TestClient,
+    origin: str,
 ) -> None:
     response = api_client.options(
         "/api/v1/settings/aws-credentials",
         headers={
-            "Origin": "http://localhost:5173",
+            "Origin": origin,
             "Access-Control-Request-Method": "DELETE",
             "Access-Control-Request-Headers": "authorization",
         },
     )
     assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["access-control-allow-credentials"] == "true"
     assert "DELETE" in response.headers["access-control-allow-methods"]
+
+
+def test_scan_session_uses_explicit_credentials_not_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_options: list[dict[str, Any]] = []
+
+    class MockSession:
+        def __init__(self, **kwargs: Any) -> None:
+            session_options.append(kwargs)
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "stale-container-key")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "stale-container-secret")
+    monkeypatch.setattr(aws_session.boto3, "Session", MockSession)
+
+    aws_session.create_aws_session_with_credentials(
+        "  AKIAUSERKEY1234  ",
+        "  user-secret  ",
+        "  us-west-2  ",
+        "",
+    )
+
+    assert session_options == [{
+        "aws_access_key_id": "AKIAUSERKEY1234",
+        "aws_secret_access_key": "user-secret",
+        "aws_session_token": None,
+        "region_name": "us-west-2",
+    }]
 
 
 def test_cross_user_scan_inventory_finding_and_settings_are_isolated(
