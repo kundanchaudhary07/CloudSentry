@@ -16,6 +16,7 @@ from app.api.v1.dependencies import get_current_user
 from app.config.settings import get_settings
 from app.database.models import ScanSetting, User
 from app.database.session import get_db
+from app.services.aws_connection import aws_connection_status
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -39,6 +40,16 @@ class UserProfile(BaseModel):
     auth_provider: str
     is_active: bool
     created_at: datetime
+
+
+class AuthMeRead(UserProfile):
+    connected: bool
+    status: str
+    reason: str | None = None
+    account_id: str | None = None
+    arn: str | None = None
+    masked_access_key: str | None = None
+    region: str | None = None
 
 
 class AuthResponse(BaseModel):
@@ -113,9 +124,15 @@ def login(request: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     return AuthResponse(access_token=create_access_token(user), user=profile(user))
 
 
-@router.get("/me", response_model=UserProfile)
-def me(current_user: User = Depends(get_current_user)) -> UserProfile:
-    return profile(current_user)
+@router.get("/me", response_model=AuthMeRead)
+def me(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AuthMeRead:
+    return AuthMeRead(
+        **profile(current_user).model_dump(),
+        **aws_connection_status(db, current_user.id),
+    )
 
 
 def _oauth_state(provider: str) -> str:

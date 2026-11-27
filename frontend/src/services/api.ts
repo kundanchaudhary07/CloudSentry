@@ -55,6 +55,13 @@ export interface AuthUser {
   auth_provider: 'local' | 'google' | 'aws'
   is_active: boolean
   created_at: string
+  connected?: boolean
+  status?: AwsConnectionStatusValue
+  reason?: string | null
+  account_id?: string | null
+  arn?: string | null
+  masked_access_key?: string | null
+  region?: string | null
 }
 
 export interface AuthResponse {
@@ -92,27 +99,44 @@ export async function getOAuthProviders(): Promise<OAuthProviders> {
 }
 
 export interface AwsCredentialsRead {
+  connected: boolean
+  status: AwsConnectionStatusValue
+  reason: string | null
+  account_id: string | null
+  arn: string | null
+  masked_access_key: string | null
+  region: string | null
   has_aws_credentials: boolean
   aws_access_key_id_preview: string | null
-  aws_default_region: string
+  aws_default_region: string | null
   aws_role_arn: string | null
 }
 
+export type AwsConnectionStatusValue = 'connected' | 'revoked' | 'disconnected'
+
 export interface AwsConnectionDisconnectRead {
   connected: boolean
-  message: string
+  status: AwsConnectionStatusValue
 }
 
 export const AWS_CONNECTION_STATUS_EVENT = 'cloudsentry:aws-connection-status'
 
-export function announceAwsConnectionStatus(connected: boolean, region?: string) {
-  window.dispatchEvent(new CustomEvent<{ connected: boolean; region?: string }>(AWS_CONNECTION_STATUS_EVENT, {
-    detail: { connected, region },
+export function announceAwsConnectionStatus(
+  connected: boolean,
+  region?: string,
+  status: AwsConnectionStatusValue = connected ? 'connected' : 'disconnected',
+) {
+  window.dispatchEvent(new CustomEvent<{
+    connected: boolean
+    region?: string
+    status: AwsConnectionStatusValue
+  }>(AWS_CONNECTION_STATUS_EVENT, {
+    detail: { connected, region, status },
   }))
 }
 
 export async function getAwsCredentials(): Promise<AwsCredentialsRead> {
-  const response = await api.get<AwsCredentialsRead>('/settings/aws-credentials')
+  const response = await api.get<AwsCredentialsRead>('/settings/aws')
   return response.data
 }
 
@@ -127,7 +151,7 @@ export async function saveAwsCredentials(request: {
 }
 
 export async function disconnectAwsConnection(): Promise<AwsConnectionDisconnectRead> {
-  const response = await api.delete<AwsConnectionDisconnectRead>('/settings/aws-credentials')
+  const response = await api.delete<AwsConnectionDisconnectRead>('/settings/aws')
   return response.data
 }
 

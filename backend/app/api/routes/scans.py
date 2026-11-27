@@ -20,6 +20,7 @@ from app.services.scan_service import (
     get_scan_dependencies,
     run_and_persist_scan,
 )
+from app.services.aws_connection import aws_connection_status
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -79,13 +80,11 @@ def create_scan(
     dependencies: ScanDependencies = Depends(get_scan_dependencies),
     current_user: User = Depends(get_current_user),
 ) -> Scan:
-    credential = db.scalar(
-        select(UserAwsCredential).where(UserAwsCredential.user_id == current_user.id)
-    )
-    if credential is None:
+    connection = aws_connection_status(db, current_user.id)
+    if not connection["connected"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Connect your AWS account in Settings before running a scan.",
+            detail="AWS IAM credentials are invalid or deleted. Reconnect in Settings before running a scan.",
         )
     scan = Scan(
         user_id=current_user.id,

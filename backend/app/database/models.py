@@ -59,6 +59,7 @@ class UserAwsCredential(Base):
     encrypted_secret_access_key: Mapped[str] = mapped_column(Text, nullable=False)
     aws_default_region: Mapped[str] = mapped_column(String(64), nullable=False, default="us-east-1")
     aws_role_arn: Mapped[str | None] = mapped_column(String(512))
+    is_valid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     user: Mapped[User] = relationship(back_populates="aws_credentials")
 
 

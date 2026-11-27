@@ -35,6 +35,7 @@ import {
   getDashboard,
   type AuthUser,
   type AwsCredentialsRead,
+  type AwsConnectionStatusValue,
 } from '../../services/api'
 import {
   readOperatorSession,
@@ -138,6 +139,8 @@ export function AppShell() {
   const [profileError, setProfileError] = useState<string | null>(null)
   const [awsConnectionPromptOpen, setAwsConnectionPromptOpen] = useState(false)
   const [awsConnected, setAwsConnected] = useState<boolean | null>(null)
+  const [awsConnectionStatus, setAwsConnectionStatus] = useState<AwsConnectionStatusValue | null>(null)
+  const [revokedNoticeDismissed, setRevokedNoticeDismissed] = useState(false)
   const [awsDefaultRegion, setAwsDefaultRegion] = useState('us-east-1')
   const [awsConnectionRevision, setAwsConnectionRevision] = useState(0)
   const [awsConnectionError, setAwsConnectionError] = useState<string | null>(null)
@@ -254,8 +257,14 @@ export function AppShell() {
     if (!isAuthReady || !token) return
     let active = true
     let hasStatusChange = false
-    function updateAwsStatus(connected: boolean, region?: string) {
+    function updateAwsStatus(
+      connected: boolean,
+      region?: string,
+      status: AwsConnectionStatusValue = connected ? 'connected' : 'disconnected',
+    ) {
       setAwsConnected(connected)
+      setAwsConnectionStatus(status)
+      if (status === 'revoked') setRevokedNoticeDismissed(false)
       if (region) setAwsDefaultRegion(region)
       setAwsConnectionError(null)
       setAwsConnectionRevision((revision) => revision + 1)
@@ -271,13 +280,21 @@ export function AppShell() {
         && typeof event.detail.connected === 'boolean'
       ) {
         hasStatusChange = true
-        updateAwsStatus(event.detail.connected, event.detail.region)
+        updateAwsStatus(
+          event.detail.connected,
+          event.detail.region,
+          event.detail.status,
+        )
       }
     }
     getAwsCredentials()
       .then((result) => {
         if (active && !hasStatusChange) {
-          updateAwsStatus(result.has_aws_credentials, result.aws_default_region)
+          updateAwsStatus(
+            result.connected,
+            result.region ?? result.aws_default_region ?? undefined,
+            result.status,
+          )
         }
       })
       .catch((requestError: unknown) => {
@@ -430,6 +447,7 @@ export function AppShell() {
   const profileAwsKey = formatMaskedAwsKey(profileAws?.aws_access_key_id_preview ?? null)
   const awsConnectionContextValue = {
     awsConnected: awsConnected === true,
+    awsConnectionStatus,
     connectionRevision: awsConnectionRevision,
     openAwsConnectionPrompt: () => setAwsConnectionPromptOpen(true),
   }
@@ -549,24 +567,36 @@ export function AppShell() {
           </form>
 
           <div className="app-header-controls">
-            <div
-              className={`api-indicator ${apiConnection}${apiConnection === 'connected' && awsConnected === false ? ' aws-disconnected' : ''}${apiConnection === 'connected' && awsConnectionError ? ' aws-status-unavailable' : ''}`}
-              role="status"
-              title={awsConnectionError ?? (awsConnected === false ? 'API connected · AWS not connected' : dashboardError ?? undefined)}
-            >
-              <span className="status-dot" />
-              <span>
-                {apiConnection === 'checking'
-                  ? 'Connecting'
-                  : apiConnection === 'connected'
-                    ? awsConnected === false
-                      ? 'Not connected'
-                      : awsConnectionError
-                        ? 'AWS status unavailable'
-                        : 'Connected'
-                    : 'API unavailable'}
-              </span>
-            </div>
+            {apiConnection === 'connected' && awsConnected === false
+              ? (
+                <Link
+                  className="api-indicator connected aws-disconnected"
+                  to="/settings"
+                  title="AWS disconnected · Open Settings to reconnect"
+                  aria-label="Disconnected. Open AWS Settings"
+                >
+                  <span className="status-dot" />
+                  <span>Disconnected</span>
+                </Link>
+              )
+              : (
+                <div
+                  className={`api-indicator ${apiConnection}${awsConnectionError ? ' aws-status-unavailable' : ''}`}
+                  role="status"
+                  title={awsConnectionError ?? dashboardError ?? undefined}
+                >
+                  <span className="status-dot" />
+                  <span>
+                    {apiConnection === 'checking'
+                      ? 'Connecting'
+                      : apiConnection === 'connected'
+                        ? awsConnectionError
+                          ? 'AWS status unavailable'
+                          : 'Connected'
+                        : 'API unavailable'}
+                  </span>
+                </div>
+              )}
             <ScanTriggerButton settings={settings} showError={false} />
             <div className="environment-pill" title="Region from the latest completed scan">
               <span className="aws-mark" aria-hidden="true">aws</span>
@@ -597,6 +627,22 @@ export function AppShell() {
         </header>
 
         <main className="page-content">
+          {awsConnectionStatus === 'revoked' && !revokedNoticeDismissed && (
+            <div className="notice-banner aws-revoked-notice" role="status">
+              <span>
+                Your AWS IAM access key was deleted or revoked in AWS. Historical scan data is preserved, but new scans are locked until you reconnect in Settings.
+                {' '}
+                <Link to="/settings">Reconnect AWS →</Link>
+              </span>
+              <button
+                type="button"
+                aria-label="Dismiss AWS credential notice"
+                onClick={() => setRevokedNoticeDismissed(true)}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
@@ -739,9 +785,13 @@ export function AppShell() {
                         </span>
                       </div>
                     </div>
-                    <span className={`profile-aws-status${profileAws.has_aws_credentials ? ' is-connected' : ''}`}>
-                      {profileAws.has_aws_credentials && <span className="profile-aws-status-dot" aria-hidden="true" />}
-                      {profileAws.has_aws_credentials ? 'Connected' : 'Not connected'}
+                    <span className={`profile-aws-status${profileAws.connected ? ' is-connected' : ' is-disconnected'}`}>
+                      {profileAws.connected && <span className="profile-aws-status-dot" aria-hidden="true" />}
+                      {profileAws.status === 'revoked'
+                        ? 'Key Revoked — Reconnect'
+                        : profileAws.connected
+                          ? 'Connected'
+                          : 'Disconnected'}
                     </span>
                   </section>
                 </div>

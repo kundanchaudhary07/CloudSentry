@@ -65,7 +65,13 @@ export function ProfilePage() {
             </div>
             <div>
               <dt>AWS connection</dt>
-              <dd>{aws?.has_aws_credentials ? `Connected · ${aws.aws_access_key_id_preview ?? 'Key saved'}` : 'Not connected'}</dd>
+              <dd>
+                {aws?.status === 'revoked'
+                  ? 'Key Revoked — Reconnect'
+                  : aws?.connected
+                    ? `Connected · ${aws.aws_access_key_id_preview ?? 'Key saved'}`
+                    : 'Disconnected'}
+              </dd>
             </div>
           </dl>
 

@@ -87,7 +87,16 @@ export function ProfileModal({
             <dl className="profile-detail-list">
               <div><dt>Sign-in provider</dt><dd>{providerName}</dd></div>
               <div><dt>Account created</dt><dd>{new Date(profile.created_at).toLocaleDateString()}</dd></div>
-              <div><dt>AWS connection</dt><dd>{aws?.has_aws_credentials ? `Connected · ${aws.aws_access_key_id_preview ?? 'Key saved'}` : 'Not connected'}</dd></div>
+              <div>
+                <dt>AWS connection</dt>
+                <dd>
+                  {aws?.status === 'revoked'
+                    ? 'Key Revoked — Reconnect'
+                    : aws?.connected
+                      ? `Connected · ${aws.aws_access_key_id_preview ?? 'Key saved'}`
+                      : 'Disconnected'}
+                </dd>
+              </div>
             </dl>
             <button className="button button-primary profile-settings-link" type="button" onClick={onOpenSettings}>
               Manage AWS Settings →

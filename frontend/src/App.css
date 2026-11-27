@@ -167,6 +167,7 @@
   color: var(--cs-muted);
   font-size: 11px;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .status-dot,
@@ -1030,6 +1031,37 @@
   line-height: 1.5;
 }
 
+.aws-revoked-notice {
+  align-items: center;
+  justify-content: space-between;
+  border-color: #f2c879;
+  background: #fff8e7;
+  color: #854d0e;
+}
+
+.aws-revoked-notice a {
+  color: #9a3412;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.aws-revoked-notice button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.aws-revoked-notice button:hover {
+  background: rgba(154, 52, 18, 0.08);
+}
+
 .compact-notice {
   flex-direction: column;
 }
@@ -1207,6 +1239,12 @@
   border-color: #e2e8f0;
   background: #f8fafc;
   color: #64748b;
+}
+
+.aws-connected-badge.is-revoked {
+  border-color: #f2c879;
+  background: #fff8e7;
+  color: #9a3412;
 }
 
 .settings-card,
@@ -5116,6 +5154,12 @@ button.operator-label {
   border-color: #a7f3d0;
   background: #ecfdf5;
   color: #047857;
+}
+
+.profile-aws-status.is-disconnected {
+  border-color: #f2c879;
+  background: #fff8e7;
+  color: #9a3412;
 }
 
 .profile-aws-status-dot {

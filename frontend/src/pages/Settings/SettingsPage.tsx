@@ -27,6 +27,7 @@ export function SettingsPage() {
   const [awsRegion, setAwsRegion] = useState('us-east-1')
   const [awsRoleArn, setAwsRoleArn] = useState('')
   const [hasAwsCredentials, setHasAwsCredentials] = useState(false)
+  const [awsConnectionStatus, setAwsConnectionStatus] = useState<'connected' | 'revoked' | 'disconnected'>('disconnected')
   const [savingAws, setSavingAws] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [awsPreview, setAwsPreview] = useState<string | null>(null)
@@ -37,8 +38,9 @@ export function SettingsPage() {
     getAwsCredentials()
       .then((value) => {
         setHasAwsCredentials(value.has_aws_credentials)
+        setAwsConnectionStatus(value.status)
         setAwsPreview(value.aws_access_key_id_preview)
-        setAwsRegion(value.has_aws_credentials ? value.aws_default_region : 'us-east-1')
+        setAwsRegion(value.aws_default_region ?? 'us-east-1')
         setAwsRoleArn(value.aws_role_arn ?? '')
       })
       .catch((requestError: unknown) => setAwsError(getApiErrorMessage(requestError)))
@@ -51,13 +53,14 @@ export function SettingsPage() {
     try {
       const result = await disconnectAwsConnectionRequest()
       setHasAwsCredentials(result.connected)
+      setAwsConnectionStatus(result.status)
       setAwsPreview(null)
       setAwsAccessKey('')
       setAwsSecretKey('')
       setAwsRegion('us-east-1')
       setAwsRoleArn('')
       setAwsMessage('AWS connection disconnected')
-      announceAwsConnectionStatus(result.connected, 'us-east-1')
+      announceAwsConnectionStatus(result.connected, 'us-east-1', result.status)
     } catch (requestError) {
       setAwsError(getApiErrorMessage(requestError))
     } finally {
@@ -79,11 +82,18 @@ export function SettingsPage() {
         aws_role_arn: awsRoleArn.trim() || undefined,
       })
       setHasAwsCredentials(result.has_aws_credentials)
+      setAwsConnectionStatus(result.status)
       setAwsPreview(result.aws_access_key_id_preview)
       setAwsSecretKey('')
-      setAwsMessage(`Connected · ${result.aws_access_key_id_preview ?? 'AWS key saved'}`)
+      setAwsMessage(result.connected
+        ? `Connected · ${result.aws_access_key_id_preview ?? 'AWS key saved'}`
+        : 'AWS credentials were saved but are not currently valid.')
       setAwsError(null)
-      announceAwsConnectionStatus(result.has_aws_credentials, result.aws_default_region)
+      announceAwsConnectionStatus(
+        result.connected,
+        result.region ?? result.aws_default_region ?? undefined,
+        result.status,
+      )
     } catch (requestError) {
       setAwsError(getApiErrorMessage(requestError))
       setAwsMessage(null)
@@ -173,8 +183,12 @@ export function SettingsPage() {
             {awsError && <div className="form-feedback error" role="alert">{awsError}</div>}
             {awsMessage && <div className="form-feedback success" role="status">{awsMessage}</div>}
             <div className="aws-connected-row">
-              <span className={`aws-connected-badge${hasAwsCredentials ? '' : ' is-disconnected'}`} role="status">
-                {hasAwsCredentials ? `Connected · ${awsPreview ?? 'AWS credentials saved'}` : 'Not connected'}
+              <span className={`aws-connected-badge${awsConnectionStatus === 'connected' ? '' : ' is-disconnected'}${awsConnectionStatus === 'revoked' ? ' is-revoked' : ''}`} role="status">
+                {awsConnectionStatus === 'revoked'
+                  ? `Revoked / Deleted in AWS · ${awsPreview ?? 'AWS key'}`
+                  : awsConnectionStatus === 'connected'
+                    ? `Connected · ${awsPreview ?? 'AWS credentials saved'}`
+                    : 'Disconnected'}
               </span>
               {hasAwsCredentials && (
                 <ScanTriggerButton

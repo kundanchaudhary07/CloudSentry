@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
@@ -26,13 +27,14 @@ from cryptography.fernet import Fernet
 from app.main import app
 from app.rules.models import CostExplorerSummary
 from app.services.scan_service import ScanDependencies, get_scan_dependencies
+from app.services import aws_connection
 
 REGION = "us-east-1"
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
-def api_client() -> TestClient:
+def api_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     engine = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},
@@ -142,6 +144,11 @@ def api_client() -> TestClient:
             ],
         ),
     )
+    class MockSts:
+        def get_caller_identity(self) -> dict[str, str]:
+            return {"Account": "123456789012", "Arn": "arn:aws:iam::123456789012:user/test"}
+
+    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: MockSts())
     app.dependency_overrides[get_db] = override_get_db
     original_session_local = database_session.SessionLocal
     database_session.SessionLocal = test_session
@@ -324,17 +331,23 @@ def test_api_returns_not_found_and_validates_patch_payload(
 def test_disconnect_aws_credentials_removes_user_connection(
     api_client: TestClient,
 ) -> None:
+    _create_scan(api_client)
+    original_findings = api_client.get("/api/v1/findings").json()
+    original_resources = api_client.get("/api/v1/inventory").json()
     disconnected = api_client.delete("/api/v1/settings/aws-credentials")
     assert disconnected.status_code == 200
     assert disconnected.json() == {
         "connected": False,
-        "message": "AWS connection disconnected.",
+        "status": "disconnected",
     }
 
     credentials = api_client.get("/api/v1/settings/aws-credentials")
     assert credentials.status_code == 200
     assert credentials.json()["has_aws_credentials"] is False
     assert credentials.json()["aws_access_key_id_preview"] is None
+    assert len(api_client.get("/api/v1/scans").json()) == 1
+    assert api_client.get("/api/v1/findings").json() == original_findings
+    assert api_client.get("/api/v1/inventory").json() == original_resources
 
     scan = api_client.post(
         "/api/v1/scans",
@@ -346,7 +359,59 @@ def test_disconnect_aws_credentials_removes_user_connection(
         },
     )
     assert scan.status_code == 400
-    assert scan.json()["detail"] == "Connect your AWS account in Settings before running a scan."
+    assert scan.json()["detail"] == (
+        "AWS IAM credentials are invalid or deleted. Reconnect in Settings before running a scan."
+    )
+
+
+def test_revoked_aws_credentials_preserve_historical_data(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created = _create_scan(api_client)
+    original_rows = {
+        "scans": api_client.get("/api/v1/scans").json(),
+        "findings": api_client.get("/api/v1/findings").json(),
+        "inventory": api_client.get("/api/v1/inventory").json(),
+    }
+
+    class InvalidSts:
+        def get_caller_identity(self) -> dict[str, str]:
+            raise ClientError(
+                {"Error": {"Code": "InvalidClientTokenId", "Message": "Invalid token"}},
+                "GetCallerIdentity",
+            )
+
+    monkeypatch.setattr(aws_connection.boto3, "client", lambda *args, **kwargs: InvalidSts())
+
+    status = api_client.get("/api/v1/settings/aws")
+    assert status.status_code == 200
+    assert status.json()["connected"] is False
+    assert status.json()["status"] == "revoked"
+    assert status.json()["reason"] == (
+        "AWS IAM access key is invalid or deleted in AWS."
+    )
+
+    profile = api_client.get("/api/v1/auth/me")
+    assert profile.status_code == 200
+    assert profile.json()["connected"] is False
+    assert profile.json()["status"] == "revoked"
+
+    blocked_scan = api_client.post(
+        "/api/v1/scans",
+        json={
+            "regions": [REGION],
+            "include_cost_explorer": False,
+            "required_tags": ["Environment", "Owner"],
+            "required_cost_tags": ["CostCenter", "Project"],
+        },
+    )
+    assert blocked_scan.status_code == 400
+    assert "Reconnect in Settings" in blocked_scan.json()["detail"]
+    assert len(api_client.get("/api/v1/scans").json()) == len(original_rows["scans"]) == 1
+    assert len(api_client.get("/api/v1/findings").json()) == len(original_rows["findings"])
+    assert len(api_client.get("/api/v1/inventory").json()) == len(original_rows["inventory"])
+    assert created["status"] == "COMPLETED"
 
 
 def test_cors_allows_authenticated_aws_disconnect_preflight(
