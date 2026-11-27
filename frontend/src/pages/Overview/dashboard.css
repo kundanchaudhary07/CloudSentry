@@ -9,6 +9,17 @@
   margin-bottom: 24px;
 }
 
+.dashboard-initial-loading {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: 0 0 16px;
+  color: var(--cs-muted);
+  font-size: 0.8125rem;
+}
+
 .dashboard-brand-header .cloudsentry-mark {
   width: 38px;
   height: 29px;

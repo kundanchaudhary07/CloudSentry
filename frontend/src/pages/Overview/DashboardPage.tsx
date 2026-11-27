@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   Wrench,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -28,7 +28,7 @@ import { useScanContext } from '../../context/scan-context'
 import { useAuth } from '../../context/auth-context'
 import { HowItWorksModal } from '../../components/common/HowItWorksModal'
 import { CloudSentryLogo } from '../../components/ui/CloudSentryLogo'
-import { EmptyState, ErrorState, LoadingState, SeverityPill } from '../../components/ui/Feedback'
+import { EmptyState, ErrorState, SeverityPill } from '../../components/ui/Feedback'
 import { GradientHeroBanner } from '../../components/ui/GradientHeroBanner'
 import { PastelIconBadge } from '../../components/ui/PastelIconBadge'
 import { ScanTriggerButton } from '../../components/ui/ScanTriggerButton'
@@ -47,7 +47,8 @@ export function DashboardPage() {
     authKey: string
     dashboard: DashboardRead | null
     error: string | null
-    loading: boolean
+    isInitialLoading: boolean
+    isRefreshing: boolean
   } | null>(null)
   const [howItWorksOpen, setHowItWorksOpen] = useState(false)
   const closeHowItWorks = useCallback(() => setHowItWorksOpen(false), [])
@@ -57,28 +58,41 @@ export function DashboardPage() {
     : null
   const dashboard = currentDashboardState?.dashboard ?? null
   const error = currentDashboardState?.error ?? null
-  const loading = currentDashboardState?.loading ?? true
+  const isInitialLoading = !dashboard && (currentDashboardState?.isInitialLoading ?? true)
+  const scanInProgress = scans.some((scan) => scan.status === 'RUNNING')
+  const isRefreshing = Boolean(
+    currentDashboardState?.isRefreshing || scansLoading || scanInProgress,
+  )
 
   const loadDashboard = useCallback(async () => {
     if (!isAuthReady || !token) return
-    setDashboardState((current) => ({
+    const hasDashboard = dashboardState?.authKey === authKey && dashboardState.dashboard !== null
+    setDashboardState({
       authKey,
-      dashboard: current?.authKey === authKey ? current.dashboard : null,
+      dashboard: hasDashboard ? dashboardState.dashboard : null,
       error: null,
-      loading: true,
-    }))
+      isInitialLoading: !hasDashboard,
+      isRefreshing: hasDashboard,
+    })
     try {
       const result = await getDashboard()
-      setDashboardState({ authKey, dashboard: result, error: null, loading: false })
+      setDashboardState({
+        authKey,
+        dashboard: result,
+        error: null,
+        isInitialLoading: false,
+        isRefreshing: false,
+      })
     } catch (requestError) {
       setDashboardState({
         authKey,
-        dashboard: null,
+        dashboard: hasDashboard ? dashboardState.dashboard : null,
         error: getApiErrorMessage(requestError),
-        loading: false,
+        isInitialLoading: false,
+        isRefreshing: false,
       })
     }
-  }, [authKey, isAuthReady, token])
+  }, [authKey, dashboardState, isAuthReady, token])
 
   useEffect(() => {
     if (!isAuthReady || !token) return
@@ -86,7 +100,13 @@ export function DashboardPage() {
     getDashboard()
       .then((result) => {
         if (active) {
-          setDashboardState({ authKey, dashboard: result, error: null, loading: false })
+          setDashboardState({
+            authKey,
+            dashboard: result,
+            error: null,
+            isInitialLoading: false,
+            isRefreshing: false,
+          })
         }
       })
       .catch((requestError: unknown) => {
@@ -95,7 +115,8 @@ export function DashboardPage() {
             authKey,
             dashboard: null,
             error: getApiErrorMessage(requestError),
-            loading: false,
+            isInitialLoading: false,
+            isRefreshing: false,
           })
         }
       })
@@ -150,9 +171,21 @@ export function DashboardPage() {
     if (!isAuthReady || !token) return
     void loadDashboard()
   }, [isAuthReady, loadDashboard, token])
+  const scanWasInProgress = useRef(false)
+
+  useEffect(() => {
+    if (scanInProgress) {
+      scanWasInProgress.current = true
+      return
+    }
+    if (!scanWasInProgress.current) return
+
+    scanWasInProgress.current = false
+    refreshDashboard()
+  }, [refreshDashboard, scanInProgress])
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page" aria-busy={isRefreshing}>
       <header className="dashboard-brand-header">
         <CloudSentryLogo />
         <div className="dashboard-header-actions">
@@ -174,9 +207,14 @@ export function DashboardPage() {
 
       {scansError && <ErrorState message={scansError} />}
       {error && <ErrorState message={error} onRetry={refreshDashboard} />}
-      {(loading || scansLoading) && <LoadingState label="Loading the latest scan data…" />}
+      {!dashboard && isInitialLoading && (
+        <div className="dashboard-initial-loading" role="status">
+          <span className="loading-mark" aria-hidden="true" />
+          <span>Loading the latest scan data…</span>
+        </div>
+      )}
 
-      {!loading && dashboard && (
+      {dashboard && (
         <>
           <section className="overview-feature-grid" aria-label="CloudSentry overview">
             <GradientHeroBanner
