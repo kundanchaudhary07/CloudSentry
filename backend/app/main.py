@@ -1,8 +1,11 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.routes.costs import router as costs_router
 from app.api.routes.dashboard import router as dashboard_router
@@ -13,12 +16,39 @@ from app.api.routes.scans import router as scans_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.settings import router as settings_router
 from app.config.settings import get_settings
+import app.database.session as database_session
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger("cloudsentry")
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+
+def _ensure_aws_credential_validity_column() -> None:
+    session = database_session.SessionLocal()
+    try:
+        engine = session.get_bind()
+    finally:
+        session.close()
+
+    if engine.dialect.name != "postgresql":
+        return
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE user_aws_credentials "
+                "ADD COLUMN IF NOT EXISTS is_valid BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+        )
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    _ensure_aws_credential_validity_column()
+    yield
+
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

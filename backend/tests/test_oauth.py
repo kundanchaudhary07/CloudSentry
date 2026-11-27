@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.api.v1.auth as auth_module
+import app.database.session as database_session
 from app.database.models import Base, ScanSetting, User
 from app.database.session import get_db
 from app.main import app
@@ -64,6 +65,8 @@ def oauth_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "google-test-secret")
     auth_module.get_settings.cache_clear()
     app.dependency_overrides[get_db] = override_get_db
+    original_session_local = database_session.SessionLocal
+    database_session.SessionLocal = test_session
     MockAsyncClient.claims = {}
 
     try:
@@ -71,6 +74,7 @@ def oauth_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             yield client, test_session
     finally:
         app.dependency_overrides.clear()
+        database_session.SessionLocal = original_session_local
         auth_module.get_settings.cache_clear()
         Base.metadata.drop_all(engine)
         engine.dispose()
